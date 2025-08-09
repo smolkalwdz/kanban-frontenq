@@ -483,7 +483,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                   required
                   style={{ marginBottom: '4px' }}
                 />
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px' }}>
+                <div className="time-buttons">
                   {[
                     { time: '14:00', label: '14' },
                     { time: '15:00', label: '15' },
@@ -503,17 +503,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                       key={time}
                       type="button"
                       onClick={() => setEditForm(prev => ({ ...prev, time }))}
-                      style={{
-                        background: editForm.time === time ? '#3b82f6' : '#f3f4f6',
-                        color: editForm.time === time ? 'white' : '#374151',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '3px',
-                        padding: '2px 6px',
-                        fontSize: '10px',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease',
-                        minWidth: '24px'
-                      }}
+                      className={`time-button ${editForm.time === time ? 'active' : ''}`}
                     >
                       {label}
                     </button>
@@ -801,7 +791,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                   required
                   style={{ marginBottom: '4px' }}
                 />
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px' }}>
+                <div className="time-buttons">
                   {[
                     { time: '14:00', label: '14' },
                     { time: '15:00', label: '15' },
@@ -821,23 +811,13 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                       key={time}
                       type="button"
                       onClick={() => setForm(prev => ({ ...prev, time }))}
-                      style={{
-                        background: form.time === time ? '#3b82f6' : '#f3f4f6',
-                        color: form.time === time ? 'white' : '#374151',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '3px',
-                        padding: '2px 6px',
-                        fontSize: '10px',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease',
-                        minWidth: '24px'
-                      }}
+                      className={`time-button ${form.time === time ? 'active' : ''}`}
                     >
                       {label}
                     </button>
                   ))}
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px', marginTop: '2px' }}>
+                <div className="time-buttons">
                   {[
                     { time: '14:30', label: '14:30' },
                     { time: '15:30', label: '15:30' },
@@ -856,16 +836,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                       key={time}
                       type="button"
                       onClick={() => setForm(prev => ({ ...prev, time }))}
-                      style={{
-                        background: form.time === time ? '#10b981' : '#f3f4f6',
-                        color: form.time === time ? 'white' : '#374151',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '3px',
-                        padding: '2px 6px',
-                        fontSize: '10px',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease'
-                      }}
+                      className={`time-button half-hour ${form.time === time ? 'active' : ''}`}
                     >
                       {label}
                     </button>
