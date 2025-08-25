@@ -740,6 +740,249 @@ input:focus, select:focus {
   margin-left: 8px;
 }
 
+/* Контекстное меню */
+.context-menu {
+  position: fixed;
+  background: white;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 8px 0;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  z-index: 1100; /* Выше, чем у формы быстрого бронирования */
+  min-width: 200px;
+  animation: menuSlideIn 0.15s ease-out;
+}
+
+.context-menu-item {
+  width: 100%;
+  padding: 12px 16px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 500;
+  color: #1f2937;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: none;
+  border: none;
+  text-align: left;
+}
+
+.context-menu-item:hover {
+  background: linear-gradient(135deg, #f3f4f6, #f9fafb);
+  color: #2563eb;
+  padding-left: 20px;
+}
+
+.context-menu-item:focus {
+  outline: none;
+  background: linear-gradient(135deg, #e0f2fe, #f0f9ff);
+  color: #1d4ed8;
+}
+
+@keyframes menuSlideIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Стили для неубранной зоны */
+.zone-card.not-cleaned {
+  border: 2px solid #ef4444;
+  box-shadow: 0 0 0 1px #ef4444;
+}
+
+.zone-card.not-cleaned .zone-card-header {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+
+.not-cleaned-indicator {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: #ef4444;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.2);
+}
+
+/* Форма быстрого бронирования */
+.quick-booking-form {
+  position: fixed;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  padding: 24px;
+  width: 380px;
+  z-index: 1000;
+  animation: quickFormSlideIn 0.2s ease-out;
+  transform: translate(-50%, 0); /* Изменили точку трансформации */
+  border: 2px solid #e2e8f0;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+}
+
+/* Обновляем анимацию появления */
+@keyframes quickFormSlideIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -20px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.quick-booking-form h3 {
+  margin: 0 0 20px 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: #1f2937;
+  text-align: center;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.quick-booking-form form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.quick-booking-form label {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 4px;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+.quick-booking-form input {
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 2px solid #e2e8f0;
+  font-size: 16px;
+  font-weight: 500;
+  color: #1f2937;
+  background: #f8fafc;
+  transition: all 0.2s ease;
+}
+
+.quick-booking-form input:focus {
+  border-color: #3b82f6;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  outline: none;
+}
+
+.quick-booking-form .quick-time-buttons {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(45px, 1fr));
+  gap: 4px;
+  margin-top: 8px;
+  padding: 8px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.quick-booking-form .quick-time-button {
+  padding: 8px 4px;
+  font-size: 14px;
+  font-weight: 600;
+  border: 2px solid #e2e8f0;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+  color: #0369a1;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.quick-booking-form .quick-time-button:hover {
+  background: linear-gradient(135deg, #e0f2fe, #bae6fd);
+  border-color: #7dd3fc;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.quick-booking-form .quick-time-button.active {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: white;
+  border-color: #1d4ed8;
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+  transform: translateY(-1px);
+}
+
+.quick-booking-form .actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.quick-booking-form .submit-btn {
+  flex: 1;
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+.quick-booking-form .submit-btn:hover {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.quick-booking-form .cancel-btn {
+  padding: 12px 24px;
+  background: #f8fafc;
+  color: #1f2937;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+.quick-booking-form .cancel-btn:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  transform: translateY(-1px);
+}
+
+@keyframes quickFormSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* Адаптивность */
 @media (max-width: 900px) {
   .promo-bar {

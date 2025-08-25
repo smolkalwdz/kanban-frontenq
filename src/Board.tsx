@@ -8,6 +8,7 @@ interface Table {
   name: string;
   capacity: number;
   branch: string;
+  isNotCleaned?: boolean;
 }
 
 interface Booking {
@@ -33,6 +34,238 @@ interface BoardProps {
 }
 
 const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
+  // Состояние для быстрого добавления брони
+  const [quickBooking, setQuickBooking] = useState<{
+    tableId: number;
+    position: { x: number; y: number };
+  } | null>(null);
+
+  // Базовая форма для быстрого бронирования
+  const [quickForm, setQuickForm] = useState({
+    name: '',
+    time: '',
+    guests: 1,
+    phone: '',
+  });
+  // Состояние для контекстного меню
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    tableId: number;
+  } | null>(null);
+
+  // Обработчик правого клика на зону
+  const handleContextMenu = (e: React.MouseEvent, tableId: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Закрываем форму быстрого бронирования, если она открыта
+    setQuickBooking(null);
+    
+    setContextMenu({
+      x: e.clientX + 10, // Смещаем на 10px вправо от курсора
+      y: e.clientY + 10, // Смещаем на 10px вниз от курсора
+      tableId
+    });
+  };
+
+  // Обработчик закрытия контекстного меню
+  const handleCloseContextMenu = () => {
+    setContextMenu(null);
+  };
+
+  // Обработчик клика на зону для быстрого добавления
+  const handleZoneClick = (e: React.MouseEvent, tableId: number) => {
+    // Проверяем, был ли клик по карточке брони или её элементам управления
+    const isBookingCardClick = (e.target as HTMLElement).closest('.booking-card, .booking-actions, .action-btn');
+    if (isBookingCardClick) {
+      return; // Если клик был по брони или её кнопкам, не открываем форму
+    }
+
+    // Если был правый клик, не открываем форму
+    if (e.button === 2) {
+      return;
+    }
+
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Если уже открыто контекстное меню, закрываем его
+    if (contextMenu) {
+      setContextMenu(null);
+      return;
+    }
+
+    // Получаем размеры и позицию зоны относительно viewport
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    
+    // Получаем размеры окна браузера
+    const windowHeight = window.innerHeight;
+    const windowWidth = window.innerWidth;
+
+    // Размеры формы (примерные)
+    const formHeight = 450; // Примерная высота формы
+    const formWidth = 380; // Ширина формы из CSS
+
+    // Вычисляем позицию по центру зоны
+    let x = rect.left + rect.width / 2;
+    let y = rect.bottom + 20; // 20px отступ от низа зоны
+
+    // Проверяем, поместится ли форма снизу от зоны
+    if (y + formHeight > windowHeight - 20) {
+      // Если не помещается снизу, размещаем сверху от зоны
+      y = rect.top - formHeight - 20;
+      
+      // Если и сверху не помещается, центрируем по вертикали
+      if (y < 20) {
+        y = (windowHeight - formHeight) / 2;
+      }
+    }
+
+    // Проверяем и корректируем позицию по горизонтали
+    if (x - formWidth/2 < 20) {
+      x = formWidth/2 + 20;
+    } else if (x + formWidth/2 > windowWidth - 20) {
+      x = windowWidth - formWidth/2 - 20;
+    }
+
+    // Добавляем отладочную информацию
+    console.log('Quick booking positioning:', {
+      zoneRect: rect,
+      windowSize: { width: windowWidth, height: windowHeight },
+      calculatedPosition: { x, y },
+      formSize: { width: formWidth, height: formHeight }
+    });
+
+    // Устанавливаем позицию с учетом корректировок
+    setQuickBooking({
+      tableId,
+      position: { x, y }
+    });
+    
+    setQuickForm({
+      name: '',
+      time: '',
+      guests: 1,
+      phone: '',
+    });
+  };
+
+  // Обработчик быстрого добавления брони
+  const handleQuickBookingSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickBooking || !quickForm.name.trim() || !quickForm.time.trim()) return;
+
+    const newBooking: Omit<Booking, 'id'> = {
+      name: quickForm.name.trim(),
+      time: quickForm.time.trim(),
+      tableId: quickBooking.tableId,
+      guests: quickForm.guests,
+      phone: quickForm.phone.trim(),
+      source: 'Лично' as SourceType,
+      branch: currentBranch,
+      isActive: false,
+      comment: '',
+      hasVR: false,
+      hasShisha: false,
+    };
+
+    try {
+      await fetch(`${API_URL}/api/bookings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newBooking),
+      });
+      
+      // Обновляем список броней
+      const res = await fetch(`${API_URL}/api/bookings`);
+      const data = await res.json();
+      setBookings(data.map((b: any) => ({
+        ...b,
+        tableId: Number(b.tableId)
+      })));
+
+      // Закрываем форму
+      setQuickBooking(null);
+      setQuickForm({
+        name: '',
+        time: '',
+        guests: 1,
+        phone: '',
+      });
+    } catch (error) {
+      console.error('Error creating quick booking:', error);
+    }
+  };
+
+  // Обработчик изменения формы быстрого бронирования
+  const handleQuickFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value, type } = e.target;
+    setQuickForm(prev => ({
+      ...prev,
+      [name]: type === 'number' ? Number(value) : value
+    }));
+  };
+
+  // Обработчик изменения статуса уборки
+  const handleToggleCleanStatus = async (tableId: number) => {
+    try {
+      const table = tables.find(t => t.id === tableId);
+      if (!table) return;
+
+      // Создаем объект с обязательными полями
+      const updatedTable = {
+        id: table.id,
+        name: table.name,
+        capacity: table.capacity,
+        branch: table.branch,
+        isNotCleaned: table.isNotCleaned === undefined ? true : !table.isNotCleaned
+      };
+
+      const res = await fetch(`${API_URL}/api/zones/${tableId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedTable),
+      });
+
+      const responseText = await res.text();
+
+      if (!res.ok) {
+        return;
+      }
+
+      interface UpdatedTableData {
+        id: number;
+        name: string;
+        capacity: number;
+        branch: string;
+        isNotCleaned: boolean;
+      }
+
+      let updatedData: UpdatedTableData;
+      try {
+        updatedData = JSON.parse(responseText) as UpdatedTableData;
+        if (!('isNotCleaned' in updatedData)) {
+          return;
+        }
+      } catch (e) {
+        return;
+      }
+
+      // Обновляем состояние локально
+      setTables(prev => prev.map(t => 
+        t.id === tableId ? { ...t, isNotCleaned: updatedData.isNotCleaned } : t
+      ));
+
+      // Принудительно обновляем данные
+      await loadData();
+
+    } catch (error) {
+      // Ошибка при обновлении статуса уборки
+    } finally {
+      handleCloseContextMenu();
+    }
+  };
   const [tables, setTables] = useState<Table[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [currentBranch, setCurrentBranch] = useState<'МСК' | 'Полевая'>(() => {
@@ -613,9 +846,23 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   }, [editingBooking, editForm, handleEditFormChange, handleSaveBookingEdit, handleCancelBookingEdit]);
 
   // Обработчики для кнопок карточек
-  const toggleActiveHandler = (booking: Booking) => () => handleToggleActive(booking);
-  const editBookingHandler = (booking: Booking) => () => handleEditBooking(booking);
-  const deleteBookingHandler = (id: string) => () => handleDelete(id);
+  const toggleActiveHandler = (booking: Booking) => (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    handleToggleActive(booking);
+  };
+  
+  const editBookingHandler = (booking: Booking) => (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    handleEditBooking(booking);
+  };
+  
+  const deleteBookingHandler = (id: string) => (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    handleDelete(id);
+  };
 
   // Функция очистки всех броней в текущем филиале
   const handleClearAllBookings = async () => {
@@ -656,8 +903,56 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     }
   };
 
+  // Обработчик клика вне контекстного меню и формы быстрого бронирования
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      // Проверяем, был ли клик вне формы быстрого бронирования
+      const quickBookingForm = document.querySelector('.quick-booking-form');
+      if (quickBookingForm && !(quickBookingForm as HTMLElement).contains(e.target as Node)) {
+        setQuickBooking(null);
+      }
+      
+      // Проверяем, был ли клик вне контекстного меню
+      const contextMenuElement = document.querySelector('.context-menu');
+      if (contextMenuElement && !(contextMenuElement as HTMLElement).contains(e.target as Node)) {
+        handleCloseContextMenu();
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
   return (
     <div>
+      {/* Контекстное меню */}
+      {contextMenu && (
+        <div
+          className="context-menu"
+          style={{
+            top: contextMenu.y,
+            left: contextMenu.x,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button 
+            className="context-menu-item"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleToggleCleanStatus(contextMenu.tableId);
+            }}
+            type="button"
+          >
+            {tables.find(t => t.id === contextMenu.tableId)?.isNotCleaned
+              ? '✨ Отметить как убранную'
+              : '🚫 Отметить как неубранную'}
+          </button>
+        </div>
+      )}
+
       {/* Заголовок с переключателем филиалов */}
       <div className="header">
         <div>
@@ -928,9 +1223,21 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
             key={table.id}
             onDragOver={e => e.preventDefault()}
             onDrop={() => handleDrop(table.id)}
-                className="zone-card"
+            onClick={(e) => handleZoneClick(e, table.id)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleContextMenu(e, table.id);
+            }}
+            className={`zone-card ${table.isNotCleaned ? 'not-cleaned' : ''}`}
+            style={{ position: 'relative', cursor: 'pointer' }}
               >
-                <div className="zone-card-header">{table.name}</div>
+                <div className="zone-card-header">
+                  {table.name}
+                  {table.isNotCleaned && (
+                    <div className="not-cleaned-indicator">Не убрана</div>
+                  )}
+                </div>
                 <div className="zone-card-body">
                   {currentBookings.filter(b => String(b.tableId) === String(table.id)).length === 0 && (
                     <div className="no-bookings">Нет броней</div>
@@ -940,7 +1247,8 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                   key={b.id}
                   draggable
                   onDragStart={() => handleDragStart(b)}
-                      className={`booking-card ${b.isActive ? 'green' : 'red'}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className={`booking-card ${b.isActive ? 'green' : 'red'}`}
                     >
                       <div className="booking-time">{b.time}</div>
                       <div className="booking-name">{b.name}</div>
@@ -975,6 +1283,97 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
 
       {/* Модальное окно редактирования */}
       {EditBookingModal}
+
+      {/* Форма быстрого бронирования */}
+      {quickBooking && (
+        <div
+          className="quick-booking-form"
+          style={{
+            position: 'fixed',
+            top: quickBooking.position.y,
+            left: quickBooking.position.x,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h3>Быстрое бронирование - {tables.find(t => t.id === quickBooking.tableId)?.name}</h3>
+          <form onSubmit={handleQuickBookingSubmit}>
+            <div>
+              <label>Имя *</label>
+              <input
+                name="name"
+                value={quickForm.name}
+                onChange={handleQuickFormChange}
+                placeholder="Имя клиента"
+                required
+                autoFocus
+              />
+            </div>
+
+            <div>
+              <label>Время *</label>
+              <input
+                name="time"
+                type="time"
+                value={quickForm.time}
+                onChange={handleQuickFormChange}
+                required
+              />
+              <div className="quick-time-buttons">
+                {[
+                  '14:00', '15:00', '16:00', '17:00', '18:00',
+                  '19:00', '20:00', '21:00', '22:00', '23:00',
+                  '00:00', '01:00', '02:00'
+                ].map((time) => (
+                  <button
+                    key={time}
+                    type="button"
+                    onClick={() => setQuickForm(prev => ({ ...prev, time }))}
+                    className={`quick-time-button ${quickForm.time === time ? 'active' : ''}`}
+                  >
+                    {time.split(':')[0]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label>Гости *</label>
+              <input
+                name="guests"
+                type="number"
+                min="1"
+                value={quickForm.guests}
+                onChange={handleQuickFormChange}
+                required
+              />
+            </div>
+
+            <div>
+              <label>Телефон</label>
+              <input
+                name="phone"
+                type="tel"
+                value={quickForm.phone}
+                onChange={handleQuickFormChange}
+                placeholder="+7"
+              />
+            </div>
+
+            <div className="actions">
+              <button type="submit" className="submit-btn">
+                Добавить
+              </button>
+              <button
+                type="button"
+                className="cancel-btn"
+                onClick={() => setQuickBooking(null)}
+              >
+                Отмена
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 };
