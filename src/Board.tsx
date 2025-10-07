@@ -24,6 +24,7 @@ interface Booking {
   comment?: string;
   hasVR?: boolean;
   hasShisha?: boolean;
+  isHappyHours?: boolean;
 }
 
 // URL backend-сервера (меняйте на свой при деплое)
@@ -34,6 +35,15 @@ interface BoardProps {
 }
 
 const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
+  // Переопределение времени приложения (для тестов): читаем из localStorage
+  const getNow = () => {
+    const override = localStorage.getItem('appTimeOverride');
+    if (override) {
+      const parsed = new Date(override);
+      if (!isNaN(parsed.getTime())) return parsed;
+    }
+    return new Date();
+  };
   // Состояние для быстрого добавления брони
   const [quickBooking, setQuickBooking] = useState<{
     tableId: number;
@@ -46,6 +56,10 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     time: '',
     guests: 1,
     phone: '',
+    comment: '',
+    hasVR: false,
+    hasShisha: false,
+    isHappyHours: false,
   });
   // Состояние для контекстного меню
   const [contextMenu, setContextMenu] = useState<{
@@ -53,6 +67,10 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     y: number;
     tableId: number;
   } | null>(null);
+
+  // Перетаскивание формы быстрого бронирования
+  const [isDraggingQuick, setIsDraggingQuick] = useState(false);
+  const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Обработчик правого клика на зону
   const handleContextMenu = (e: React.MouseEvent, tableId: number) => {
@@ -96,48 +114,14 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       return;
     }
 
-    // Получаем размеры и позицию зоны относительно viewport
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    
-    // Получаем размеры окна браузера
-    const windowHeight = window.innerHeight;
-    const windowWidth = window.innerWidth;
+    // Центрирование внутри области канбан-доски
+    const kanban = document.querySelector('.kanban-area') as HTMLElement | null;
+    const rect = kanban?.getBoundingClientRect();
+    const formHeight = 450;
+    const formWidth = 380;
+    const x = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;
+    const y = rect ? rect.top + rect.height / 2 : window.innerHeight / 2;
 
-    // Размеры формы (примерные)
-    const formHeight = 450; // Примерная высота формы
-    const formWidth = 380; // Ширина формы из CSS
-
-    // Вычисляем позицию по центру зоны
-    let x = rect.left + rect.width / 2;
-    let y = rect.bottom + 20; // 20px отступ от низа зоны
-
-    // Проверяем, поместится ли форма снизу от зоны
-    if (y + formHeight > windowHeight - 20) {
-      // Если не помещается снизу, размещаем сверху от зоны
-      y = rect.top - formHeight - 20;
-      
-      // Если и сверху не помещается, центрируем по вертикали
-      if (y < 20) {
-        y = (windowHeight - formHeight) / 2;
-      }
-    }
-
-    // Проверяем и корректируем позицию по горизонтали
-    if (x - formWidth/2 < 20) {
-      x = formWidth/2 + 20;
-    } else if (x + formWidth/2 > windowWidth - 20) {
-      x = windowWidth - formWidth/2 - 20;
-    }
-
-    // Добавляем отладочную информацию
-    console.log('Quick booking positioning:', {
-      zoneRect: rect,
-      windowSize: { width: windowWidth, height: windowHeight },
-      calculatedPosition: { x, y },
-      formSize: { width: formWidth, height: formHeight }
-    });
-
-    // Устанавливаем позицию с учетом корректировок
     setQuickBooking({
       tableId,
       position: { x, y }
@@ -148,8 +132,62 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       time: '',
       guests: 1,
       phone: '',
+      comment: '',
+      hasVR: false,
+      hasShisha: false,
+      isHappyHours: false,
     });
   };
+
+  // Начало перетаскивания формы
+  const handleQuickDragStart = (e: React.MouseEvent) => {
+    if (!quickBooking) return;
+    const target = e.target as HTMLElement;
+    // Не начинаем перетаскивание, если клик по интерактивным элементам
+    if (target.closest('input, textarea, select, button, [contenteditable="true"], .quick-time-button, label')) {
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    setIsDraggingQuick(true);
+    setDragOffset({
+      x: startX - quickBooking.position.x,
+      y: startY - quickBooking.position.y,
+    });
+  };
+
+  // Перемещение формы
+  useEffect(() => {
+    if (!isDraggingQuick) return;
+    const handleMove = (e: MouseEvent) => {
+      if (!quickBooking) return;
+      const formWidth = 380;
+      const formHeight = 450;
+      let newX = e.clientX - dragOffset.x;
+      let newY = e.clientY - dragOffset.y;
+      // Ограничиваем внутри области канбан-доски (или экрана, если не найдена)
+      const kanban = document.querySelector('.kanban-area') as HTMLElement | null;
+      const rect = kanban?.getBoundingClientRect();
+      const minX = (rect?.left ?? 0) + 10;
+      const minY = (rect?.top ?? 0) + 10;
+      const maxX = (rect ? rect.right : window.innerWidth) - formWidth - 10;
+      const maxY = (rect ? rect.bottom : window.innerHeight) - formHeight - 10;
+      if (newX < minX) newX = minX;
+      if (newY < minY) newY = minY;
+      if (newX > maxX) newX = maxX;
+      if (newY > maxY) newY = maxY;
+      setQuickBooking(prev => (prev ? { ...prev, position: { x: newX, y: newY } } : prev));
+    };
+    const handleUp = () => setIsDraggingQuick(false);
+    document.addEventListener('mousemove', handleMove);
+    document.addEventListener('mouseup', handleUp, { once: true });
+    return () => {
+      document.removeEventListener('mousemove', handleMove);
+      document.removeEventListener('mouseup', handleUp as any);
+    };
+  }, [isDraggingQuick, dragOffset, quickBooking]);
 
   // Обработчик быстрого добавления брони
   const handleQuickBookingSubmit = async (e: React.FormEvent) => {
@@ -165,9 +203,10 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       source: 'Лично' as SourceType,
       branch: currentBranch,
       isActive: false,
-      comment: '',
-      hasVR: false,
-      hasShisha: false,
+      comment: (quickForm.comment || '').trim(),
+      hasVR: !!quickForm.hasVR,
+      hasShisha: !!quickForm.hasShisha,
+      isHappyHours: !!quickForm.isHappyHours,
     };
 
     try {
@@ -192,6 +231,10 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
         time: '',
         guests: 1,
         phone: '',
+        comment: '',
+        hasVR: false,
+        hasShisha: false,
+        isHappyHours: false,
       });
     } catch (error) {
       console.error('Error creating quick booking:', error);
@@ -199,11 +242,14 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   };
 
   // Обработчик изменения формы быстрого бронирования
-  const handleQuickFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type } = e.target;
+  const handleQuickFormChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value, type } = e.target as HTMLInputElement;
+    const checked = (e.target as HTMLInputElement).checked;
     setQuickForm(prev => ({
       ...prev,
-      [name]: type === 'number' ? Number(value) : value
+      [name]: type === 'checkbox' ? checked : (type === 'number' ? Number(value) : value)
     }));
   };
 
@@ -329,6 +375,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     comment: string;
     hasVR: boolean;
     hasShisha: boolean;
+    isHappyHours: boolean;
   }>({
     name: '',
     time: '',
@@ -337,6 +384,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     comment: '',
     hasVR: false,
     hasShisha: false,
+    isHappyHours: false,
   });
 
   // Полностью отключаем любое вмешательство в работу браузера
@@ -495,31 +543,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     }
   }, [currentTables]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value, type } = e.target;
-    const checked = (e.target as HTMLInputElement).checked;
-    
-    // Отладочная информация для выбора зоны
-    if (name === 'tableId') {
-      console.log('🎯 Выбор зоны:', { 
-        oldValue: form.tableId, 
-        newValue: Number(value), 
-        availableZones: currentTables.map(t => ({ id: t.id, name: t.name }))
-      });
-    }
-    
-    setForm((prev) => {
-      const newForm = { 
-        ...prev, 
-        [name]: type === 'checkbox' ? checked : (name === 'guests' || name === 'tableId' ? Number(value) : value)
-      };
-      
-      // Сохраняем форму в localStorage
-      localStorage.setItem('bookingForm', JSON.stringify(newForm));
-      
-      return newForm;
-    });
-  };
+  // Удаляем основную форму добавления: вспомогательные хендлеры не нужны
 
   const handleEditFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
@@ -554,6 +578,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       comment: form.comment.trim(),
       hasVR: form.hasVR,
       hasShisha: form.hasShisha,
+      isHappyHours: false,
     };
     await fetch(`${API_URL}/api/bookings`, {
       method: 'POST',
@@ -596,6 +621,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       comment: booking.comment || '',
       hasVR: booking.hasVR || false,
       hasShisha: booking.hasShisha || false,
+      isHappyHours: booking.isHappyHours || false,
     });
   };
 
@@ -615,17 +641,18 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
         comment: editForm.comment.trim(),
         hasVR: editForm.hasVR,
         hasShisha: editForm.hasShisha,
+        isHappyHours: editForm.isHappyHours,
       }),
     });
     const updated = await res.json();
     setBookings(prev => prev.map(b => b.id === editingBooking.id ? { ...updated, isActive: b.isActive } : b));
     setEditingBooking(null);
-    setEditForm({ name: '', time: '', guests: 1, phone: '', comment: '', hasVR: false, hasShisha: false });
+    setEditForm({ name: '', time: '', guests: 1, phone: '', comment: '', hasVR: false, hasShisha: false, isHappyHours: false });
   };
 
   const handleCancelBookingEdit = () => {
     setEditingBooking(null);
-    setEditForm({ name: '', time: '', guests: 1, phone: '', comment: '', hasVR: false, hasShisha: false });
+    setEditForm({ name: '', time: '', guests: 1, phone: '', comment: '', hasVR: false, hasShisha: false, isHappyHours: false });
   };
 
   const handleToggleActive = async (booking: Booking) => {
@@ -681,6 +708,44 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
 
   // Получаем брони для текущего филиала
   const currentBookings = bookings.filter(booking => booking.branch === currentBranch);
+  // Подсветка счастливых часов: активируется с 18:50
+  const isHHTimeNow = () => {
+    const now = getNow();
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+    return hours > 18 || (hours === 18 && minutes >= 50);
+  };
+
+  const shouldHighlightHH = (b: Booking) => !!b.isHappyHours && isHHTimeNow();
+
+  const isHHWarningWindow = () => {
+    const now = getNow();
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+    return hours === 18 && minutes >= 50 && minutes <= 59;
+  };
+
+  const shouldBlinkHH = (b: Booking) => !!b.isHappyHours && isHHWarningWindow();
+
+  // Ежедневное уведомление в 18:50, если есть хотя бы одна HH-бронирование в текущем филиале
+  useEffect(() => {
+    let alertedKey = `hh_alerted_${getNow().toDateString()}`;
+    if (localStorage.getItem(alertedKey)) return;
+
+    const checkAndAlert = () => {
+      const now = getNow();
+      if (now.getHours() === 18 && now.getMinutes() === 50) {
+        const hasHH = bookings.some(b => b.branch === currentBranch && b.isHappyHours);
+        if (hasHH) {
+          alert('Напоминание: Счастливые часы!');
+          localStorage.setItem(alertedKey, '1');
+        }
+      }
+    };
+
+    const interval = setInterval(checkAndAlert, 1000 * 5); // чаще, чтобы мигание началось вовремя
+    return () => clearInterval(interval);
+  }, [bookings, currentBranch]);
 
   // Подсчёт активных и ожидающих бронирований
   const activeCount = bookings.filter(b => b.branch === currentBranch && b.isActive).length;
@@ -830,6 +895,15 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                   onChange={handleEditFormChange}
                 />
                 Кальян
+              </label>
+              <label style={{display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px'}}>
+                <input
+                  name="isHappyHours"
+                  type="checkbox"
+                  checked={editForm.isHappyHours}
+                  onChange={handleEditFormChange}
+                />
+                Счастливые часы
               </label>
             </div>
 
@@ -996,6 +1070,11 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
             <span className="stat-item" style={{ fontSize: '10px', opacity: 0.8 }}>
               Обновлено: {lastUpdate.toLocaleTimeString()}
             </span>
+            {localStorage.getItem('appTimeOverride') && (
+              <span className="stat-item" title={`Тестовое время: ${new Date(localStorage.getItem('appTimeOverride') || '').toLocaleString()}`} style={{ background: '#fde68a', color: '#92400e', padding: '2px 6px', borderRadius: '6px' }}>
+                Тест-время активно
+              </span>
+            )}
           </div>
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -1060,162 +1139,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
 
       {/* Основной контент */}
       <div className="content">
-        {/* Левая панель - форма добавления */}
-        <div className="form-panel">
-          <h3>Добавить бронь</h3>
-          <form onSubmit={handleSubmit} className="booking-form">
-            <div>
-              <label>Имя *</label>
-        <input
-          name="name"
-          value={form.name}
-          onChange={handleChange}
-                placeholder="Имя клиента"
-                required
-              />
-            </div>
-            
-            <div>
-              <label>Время *</label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <input
-                  name="time"
-                  type="time"
-                  value={form.time}
-                  onChange={handleChange}
-                  required
-                  style={{ marginBottom: '4px' }}
-                />
-                <div className="time-buttons">
-                  {[
-                    { time: '14:00', label: '14' },
-                    { time: '15:00', label: '15' },
-                    { time: '16:00', label: '16' },
-                    { time: '17:00', label: '17' },
-                    { time: '18:00', label: '18' },
-                    { time: '19:00', label: '19' },
-                    { time: '20:00', label: '20' },
-                    { time: '21:00', label: '21' },
-                    { time: '22:00', label: '22' },
-                    { time: '23:00', label: '23' },
-                    { time: '00:00', label: '00' },
-                    { time: '01:00', label: '01' },
-                    { time: '02:00', label: '02' }
-                  ].map(({ time, label }) => (
-                    <button
-                      key={time}
-                      type="button"
-                      onClick={() => setForm(prev => ({ ...prev, time }))}
-                      className={`time-button ${form.time === time ? 'active' : ''}`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <div className="time-buttons">
-                  {[
-                    { time: '14:30', label: '14:30' },
-                    { time: '15:30', label: '15:30' },
-                    { time: '16:30', label: '16:30' },
-                    { time: '17:30', label: '17:30' },
-                    { time: '18:30', label: '18:30' },
-                    { time: '19:30', label: '19:30' },
-                    { time: '20:30', label: '20:30' },
-                    { time: '21:30', label: '21:30' },
-                    { time: '22:30', label: '22:30' },
-                    { time: '23:30', label: '23:30' },
-                    { time: '00:30', label: '00:30' },
-                    { time: '01:30', label: '01:30' }
-                  ].map(({ time, label }) => (
-                    <button
-                      key={time}
-                      type="button"
-                      onClick={() => setForm(prev => ({ ...prev, time }))}
-                      className={`time-button half-hour ${form.time === time ? 'active' : ''}`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <label>Зона *</label>
-        <select
-          name="tableId"
-          value={form.tableId}
-          onChange={handleChange}
-          required
-        >
-                {currentTables.map((t) => (
-            <option key={t.id} value={t.id}>{t.name}</option>
-          ))}
-        </select>
-            </div>
-
-            <div>
-              <label>Количество гостей *</label>
-        <input
-          name="guests"
-          type="number"
-          value={form.guests}
-          onChange={handleChange}
-                placeholder="Количество"
-          required
-              />
-            </div>
-
-            <div>
-              <label>Номер телефона</label>
-              <input
-                name="phone"
-                type="tel"
-                value={form.phone}
-                onChange={handleChange}
-                placeholder="+7 (999) 123-45-67"
-              />
-            </div>
-
-            <div>
-              <label>Комментарий</label>
-              <textarea
-                name="comment"
-                value={form.comment}
-                onChange={handleChange}
-                placeholder="Дополнительная информация"
-                rows={2}
-              />
-            </div>
-
-            <div style={{display: 'flex', gap: '12px', alignItems: 'center'}}>
-              <label style={{display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px'}}>
-                <input
-                  name="hasVR"
-                  type="checkbox"
-                  checked={form.hasVR}
-                  onChange={handleChange}
-                />
-                VR
-              </label>
-              <label style={{display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px'}}>
-                <input
-                  name="hasShisha"
-                  type="checkbox"
-                  checked={form.hasShisha}
-          onChange={handleChange}
-                />
-                Кальян
-              </label>
-            </div>
-
-
-
-            <button type="submit">➕ Добавить бронь</button>
-      </form>
-        </div>
-
-        {/* Правая панель - канбан-доска */}
+        {/* Только канбан-доска, форма слева удалена */}
         <div className="kanban-area">
           <div className="kanban-board-content">
             {currentTables.map((table) => (
@@ -1248,7 +1172,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                   draggable
                   onDragStart={() => handleDragStart(b)}
                   onClick={(e) => e.stopPropagation()}
-                  className={`booking-card ${b.isActive ? 'green' : 'red'}`}
+                  className={`booking-card ${b.isActive ? 'green' : 'red'} ${shouldHighlightHH(b) ? 'hh-active' : ''} ${shouldBlinkHH(b) ? 'hh-blink' : ''}`}
                     >
                       <div className="booking-time">{b.time}</div>
                       <div className="booking-name">{b.name}</div>
@@ -1293,9 +1217,12 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
             top: quickBooking.position.y,
             left: quickBooking.position.x,
           }}
+          onMouseDown={handleQuickDragStart}
           onClick={(e) => e.stopPropagation()}
         >
-          <h3>Быстрое бронирование - {tables.find(t => t.id === quickBooking.tableId)?.name}</h3>
+          <h3>
+            Быстрое бронирование - {tables.find(t => t.id === quickBooking.tableId)?.name}
+          </h3>
           <form onSubmit={handleQuickBookingSubmit}>
             <div>
               <label>Имя *</label>
@@ -1357,6 +1284,47 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                 onChange={handleQuickFormChange}
                 placeholder="+7"
               />
+            </div>
+
+            <div>
+              <label>Комментарий</label>
+              <textarea
+                name="comment"
+                value={quickForm.comment}
+                onChange={handleQuickFormChange}
+                placeholder="Дополнительная информация"
+                rows={2}
+              />
+            </div>
+
+            <div className="checkbox-row" style={{display: 'flex', gap: '16px', alignItems: 'center'}}>
+              <label style={{display: 'flex', alignItems: 'center', gap: '6px', fontSize: '16px'}}>
+                <input
+                  name="hasVR"
+                  type="checkbox"
+                  checked={quickForm.hasVR}
+                  onChange={handleQuickFormChange}
+                />
+                VR
+              </label>
+              <label style={{display: 'flex', alignItems: 'center', gap: '6px', fontSize: '16px'}}>
+                <input
+                  name="hasShisha"
+                  type="checkbox"
+                  checked={quickForm.hasShisha}
+                  onChange={handleQuickFormChange}
+                />
+                Кальян
+              </label>
+              <label style={{display: 'flex', alignItems: 'center', gap: '6px', fontSize: '16px'}}>
+                <input
+                  name="isHappyHours"
+                  type="checkbox"
+                  checked={quickForm.isHappyHours}
+                  onChange={handleQuickFormChange}
+                />
+                Счастливые часы
+              </label>
             </div>
 
             <div className="actions">

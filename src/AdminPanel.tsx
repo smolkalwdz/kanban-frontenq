@@ -21,6 +21,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const [editForm, setEditForm] = useState({ name: '', capacity: 4 });
   const [addForm, setAddForm] = useState({ name: '', capacity: 4 });
   const [isAddingTable, setIsAddingTable] = useState(false);
+  const [overrideInput, setOverrideInput] = useState<string>('');
 
   // Загрузка зон
   useEffect(() => {
@@ -179,6 +180,52 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       </div>
 
       <div className="admin-content">
+        {/* Панель тестового времени */}
+        <div className="admin-form-card">
+          <h3>Тестовое время системы</h3>
+          <form
+            className="admin-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!overrideInput) return;
+              const d = new Date(overrideInput);
+              if (isNaN(d.getTime())) {
+                alert('Некорректная дата/время');
+                return;
+              }
+              localStorage.setItem('appTimeOverride', d.toISOString());
+              alert(`Установлено тестовое время: ${d.toLocaleString()}`);
+            }}
+          >
+            <div>
+              <label>Дата и время</label>
+              <input
+                type="datetime-local"
+                value={overrideInput}
+                onChange={(e) => setOverrideInput(e.target.value)}
+              />
+            </div>
+            <div className="form-actions">
+              <button type="submit" className="save-btn">Установить</button>
+              <button
+                type="button"
+                className="cancel-btn"
+                onClick={() => {
+                  localStorage.removeItem('appTimeOverride');
+                  setOverrideInput('');
+                  alert('Тестовое время сброшено');
+                }}
+              >
+                Сбросить
+              </button>
+            </div>
+            {localStorage.getItem('appTimeOverride') && (
+              <p style={{ margin: 0, fontSize: '12px', color: '#6b7280' }}>
+                Активно: {new Date(localStorage.getItem('appTimeOverride') || '').toLocaleString()}
+              </p>
+            )}
+          </form>
+        </div>
         {/* Кнопка добавления новой зоны */}
         <div className="admin-toolbar">
           <button 

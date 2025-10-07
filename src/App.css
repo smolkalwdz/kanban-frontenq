@@ -408,6 +408,52 @@ body {
   transform: translateY(-2px);
 }
 
+/* Подсветка для Счастливых часов */
+.booking-card.hh-active {
+  outline: 4px dashed #f59e0b;
+  box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.25) inset, 0 0 18px rgba(245, 158, 11, 0.45);
+  position: relative;
+}
+.booking-card.hh-active::after {
+  content: 'СЧ';
+  position: absolute;
+  top: -12px;
+  right: -12px;
+  background: #f59e0b;
+  color: #fff;
+  font-weight: 900;
+  font-size: 14px;
+  padding: 4px 10px;
+  border-radius: 10px;
+  letter-spacing: 0.5px;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.5);
+}
+
+/* Мерцание в окно предупреждения */
+@keyframes hhPulse {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.2) inset, 0 0 18px rgba(245, 158, 11, 0.35); }
+  50% { box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.45) inset, 0 0 26px rgba(245, 158, 11, 0.65); }
+}
+.booking-card.hh-blink {
+  animation: hhPulse 1s ease-in-out infinite;
+}
+
+/* Яркое внутреннее мигание (заливка внутри карточки) */
+@keyframes hhOverlayBlink {
+  0%, 100% { background: rgba(255, 255, 0, 0.18); }
+  50% { background: rgba(255, 255, 0, 0.92); }
+}
+.booking-card.hh-blink::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 0, 0.7); /* ярко-желтый для контраста на зеленом */
+  border-radius: inherit;
+  animation: hhOverlayBlink 0.6s ease-in-out infinite;
+  mix-blend-mode: normal;
+  pointer-events: none;
+}
+
 .booking-card .booking-name {
   font-size: 18px;
   color: #000000;
@@ -819,17 +865,18 @@ input:focus, select:focus {
 /* Форма быстрого бронирования */
 .quick-booking-form {
   position: fixed;
-  background: white;
+  background: rgba(255, 255, 255, 0.78);
   border-radius: 16px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
   padding: 24px;
   width: 380px;
   z-index: 1000;
   animation: quickFormSlideIn 0.2s ease-out;
-  transform: translate(-50%, 0); /* Изменили точку трансформации */
+  transform: translate(-50%, -50%);
   border: 2px solid #e2e8f0;
   max-height: calc(100vh - 40px);
   overflow-y: auto;
+  backdrop-filter: blur(8px) saturate(110%);
 }
 
 /* Обновляем анимацию появления */
@@ -866,6 +913,21 @@ input:focus, select:focus {
   color: #1f2937;
   margin-bottom: 4px;
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+/* Крупнее чекбоксы и подписи в быстрых бронированиях */
+.quick-booking-form input[type="checkbox"] {
+  width: 22px;
+  height: 22px;
+}
+.quick-booking-form .checkbox-row,
+.quick-booking-form .checkbox-row label,
+.quick-booking-form label[for*="hasVR"],
+.quick-booking-form label[for*="hasShisha"] {
+  font-size: 16px !important;
+}
+.quick-booking-form .checkbox-row {
+  gap: 16px;
 }
 
 .quick-booking-form input {
