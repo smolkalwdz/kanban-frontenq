@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_URL } from './config';
 
 interface Table {
   id: number;
@@ -7,14 +8,14 @@ interface Table {
   branch: string;
 }
 
-// URL backend-сервера
-const API_URL = process.env.REACT_APP_API_URL || 'https://smolkalwdz-kanban-backend-3d00.twc1.net';
-
 interface AdminPanelProps {
   onBack: () => void;
 }
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
+  // Отладка API URL
+  console.log('🔍 AdminPanel API_URL:', API_URL);
+  
   const [tables, setTables] = useState<Table[]>([]);
   const [currentBranch, setCurrentBranch] = useState<'МСК' | 'Полевая'>('МСК');
   const [editingTable, setEditingTable] = useState<Table | null>(null);
@@ -22,6 +23,15 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const [addForm, setAddForm] = useState({ name: '', capacity: 4 });
   const [isAddingTable, setIsAddingTable] = useState(false);
   const [overrideInput, setOverrideInput] = useState<string>('');
+  
+  // Состояние для контроля порядка
+  const [activeView, setActiveView] = useState<'zones' | 'control'>('zones');
+  const [telegramChatId, setTelegramChatId] = useState<string>(() => {
+    return localStorage.getItem('telegramChatId') || '885843500';
+  });
+  const [customMessage, setCustomMessage] = useState<string>('');
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [sendingZoneId, setSendingZoneId] = useState<number | null>(null);
 
   // Загрузка зон
   useEffect(() => {
@@ -138,48 +148,268 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     }
   };
 
+  // Сохранение Telegram Chat ID
+  const saveTelegramChatId = (chatId: string) => {
+    setTelegramChatId(chatId);
+    localStorage.setItem('telegramChatId', chatId);
+  };
+
+  // Отправка уведомления о неубранной зоне
+  const handleNotifyDirtyZone = async (table: Table) => {
+    if (!telegramChatId) {
+      alert('Пожалуйста, введите Chat ID Telegram в настройках');
+      return;
+    }
+
+    setSendingZoneId(table.id);
+    try {
+      const response = await fetch(`${API_URL}/api/telegram/notify-dirty-zone`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          branch: table.branch,
+          zoneName: table.name,
+          chatId: telegramChatId
+        })
+      });
+
+      if (response.ok) {
+        alert(`✅ Уведомление отправлено: ${table.branch}, ${table.name} — НЕ УБРАНА`);
+      } else {
+        const error = await response.json();
+        alert(`❌ Ошибка: ${error.error || 'Не удалось отправить уведомление'}`);
+      }
+    } catch (error) {
+      console.error('Error sending notification:', error);
+      alert('❌ Ошибка при отправке уведомления');
+    } finally {
+      setSendingZoneId(null);
+    }
+  };
+
+  // Отправка произвольного сообщения
+  const handleSendCustomMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!telegramChatId) {
+      alert('Пожалуйста, введите Chat ID Telegram в настройках');
+      return;
+    }
+
+    if (!customMessage.trim()) {
+      alert('Пожалуйста, введите сообщение');
+      return;
+    }
+
+    setIsSendingMessage(true);
+    try {
+      const response = await fetch(`${API_URL}/api/telegram/send-message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: customMessage,
+          chatId: telegramChatId
+        })
+      });
+
+      if (response.ok) {
+        alert('✅ Сообщение отправлено!');
+        setCustomMessage('');
+      } else {
+        const error = await response.json();
+        alert(`❌ Ошибка: ${error.error || 'Не удалось отправить сообщение'}`);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      alert('❌ Ошибка при отправке сообщения');
+    } finally {
+      setIsSendingMessage(false);
+    }
+  };
+
   return (
     <div>
       {/* Заголовок */}
       <div className="header">
         <div>
-          <h1>⚙️ Админ панель - Управление зонами</h1>
+          <h1>⚙️ Админ панель - {activeView === 'zones' ? 'Управление зонами' : 'Контроль порядка'}</h1>
           <button onClick={onBack} className="back-btn">
             ← Вернуться к доске
           </button>
         </div>
         <div className="header-btns">
           <button 
-            onClick={() => setCurrentBranch('МСК')}
-            className={currentBranch === 'МСК' ? 'active' : ''}
+            onClick={() => setActiveView('zones')}
+            className={activeView === 'zones' ? 'active' : ''}
           >
-            🏢 МСК ({tables.filter(t => t.branch === 'МСК').length})
+            🏠 Зоны
           </button>
           <button 
-            onClick={() => setCurrentBranch('Полевая')}
-            className={currentBranch === 'Полевая' ? 'active' : ''}
+            onClick={() => setActiveView('control')}
+            className={activeView === 'control' ? 'active' : ''}
           >
-            🏪 Полевая ({tables.filter(t => t.branch === 'Полевая').length})
+            🧹 Контроль порядка
           </button>
         </div>
       </div>
 
       {/* Информация о текущем филиале */}
-      <div className="info-bar">
-        <div>
-          <h2>Редактирование зон - {currentBranch}</h2>
-          <div className="booking-stats">
-            <span className="stat-item total">
-              Всего зон: {currentTables.length}
-            </span>
+      {activeView === 'zones' && (
+        <div className="info-bar">
+          <div>
+            <h2>Редактирование зон - {currentBranch}</h2>
+            <div className="booking-stats">
+              <span className="stat-item total">
+                Всего зон: {currentTables.length}
+              </span>
+            </div>
+          </div>
+          <div className="info-bar-icon">
+            {currentBranch === 'МСК' ? '🏢' : '🏪'}
           </div>
         </div>
-        <div className="info-bar-icon">
-          {currentBranch === 'МСК' ? '🏢' : '🏪'}
+      )}
+
+      {activeView === 'control' && (
+        <div className="info-bar">
+          <div>
+            <h2>Контроль порядка и уведомления</h2>
+            <div className="booking-stats">
+              <span className="stat-item">
+                📱 Telegram уведомления
+              </span>
+            </div>
+          </div>
+          <div className="info-bar-icon">
+            🧹
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="admin-content">
+        {/* ========== СЕКЦИЯ: КОНТРОЛЬ ПОРЯДКА ========== */}
+        {activeView === 'control' && (
+          <>
+            {/* Настройки Telegram */}
+            <div className="admin-form-card">
+              <h3>⚙️ Настройки Telegram</h3>
+              <div className="admin-form">
+                <div>
+                  <label>Chat ID Telegram *</label>
+                  <input
+                    type="text"
+                    value={telegramChatId}
+                    onChange={(e) => saveTelegramChatId(e.target.value)}
+                    placeholder="Введите ваш Chat ID"
+                  />
+                  <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: '#6b7280' }}>
+                    💡 Чтобы узнать ваш Chat ID, напишите боту @userinfobot в Telegram
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Быстрая отправка произвольного сообщения */}
+            <div className="admin-form-card">
+              <h3>📤 Отправить сообщение в Telegram</h3>
+              <form onSubmit={handleSendCustomMessage} className="admin-form">
+                <div>
+                  <label>Сообщение *</label>
+                  <textarea
+                    value={customMessage}
+                    onChange={(e) => setCustomMessage(e.target.value)}
+                    placeholder="Введите текст сообщения..."
+                    rows={4}
+                    style={{
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #d1d5db',
+                      width: '100%',
+                      fontSize: '14px',
+                      fontFamily: 'inherit',
+                      resize: 'vertical'
+                    }}
+                    required
+                  />
+                </div>
+                <div className="form-actions">
+                  <button 
+                    type="submit" 
+                    className="save-btn"
+                    disabled={isSendingMessage}
+                  >
+                    {isSendingMessage ? '⏳ Отправка...' : '📨 Отправить'}
+                  </button>
+                  <button
+                    type="button"
+                    className="cancel-btn"
+                    onClick={() => setCustomMessage('')}
+                    disabled={isSendingMessage}
+                  >
+                    Очистить
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Выбор филиала для контроля */}
+            <div className="admin-form-card">
+              <h3>🏢 Выберите филиал</h3>
+              <div className="branch-selector">
+                <button 
+                  onClick={() => setCurrentBranch('МСК')}
+                  className={`branch-btn ${currentBranch === 'МСК' ? 'active' : ''}`}
+                  type="button"
+                >
+                  🏢 МСК ({tables.filter(t => t.branch === 'МСК').length} зон)
+                </button>
+                <button 
+                  onClick={() => setCurrentBranch('Полевая')}
+                  className={`branch-btn ${currentBranch === 'Полевая' ? 'active' : ''}`}
+                  type="button"
+                >
+                  🏪 Полевая ({tables.filter(t => t.branch === 'Полевая').length} зон)
+                </button>
+              </div>
+            </div>
+
+            {/* Список зон с кнопками уведомлений */}
+            <div className="admin-form-card">
+              <h3>🚨 {currentBranch} - Контроль зон</h3>
+              <div className="control-zones-grid">
+                {currentTables.map((table) => (
+                  <div key={table.id} className="control-zone-card">
+                    <div className="control-zone-info">
+                      <h4>{table.name}</h4>
+                      <p>{table.capacity} чел.</p>
+                    </div>
+                    <button
+                      onClick={() => handleNotifyDirtyZone(table)}
+                      className="notify-btn"
+                      disabled={sendingZoneId === table.id}
+                      type="button"
+                    >
+                      {sendingZoneId === table.id ? (
+                        '⏳ Отправка...'
+                      ) : (
+                        '🚨 НЕ УБРАНА'
+                      )}
+                    </button>
+                  </div>
+                ))}
+              </div>
+              {currentTables.length === 0 && (
+                <p style={{ textAlign: 'center', color: '#6b7280', padding: '20px' }}>
+                  В филиале "{currentBranch}" нет зон
+                </p>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* ========== СЕКЦИЯ: УПРАВЛЕНИЕ ЗОНАМИ ========== */}
+        {activeView === 'zones' && (
+          <>
         {/* Панель тестового времени */}
         <div className="admin-form-card">
           <h3>Тестовое время системы</h3>
@@ -353,6 +583,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
             <p>В филиале "{currentBranch}" пока нет зон.</p>
             <p>Добавьте первую зону, нажав кнопку "Добавить новую зону".</p>
           </div>
+        )}
+          </>
         )}
       </div>
     </div>

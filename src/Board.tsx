@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { API_URL } from './config';
 
 const SOURCES = ['Лично', 'Звонок', 'Онлайн'] as const;
 type SourceType = typeof SOURCES[number];
@@ -26,9 +27,6 @@ interface Booking {
   hasShisha?: boolean;
   isHappyHours?: boolean;
 }
-
-// URL backend-сервера (меняйте на свой при деплое)
-const API_URL = 'https://smolkalwdz-kanban-backend-3d00.twc1.net';
 
 interface BoardProps {
   onOpenAdmin: () => void;
