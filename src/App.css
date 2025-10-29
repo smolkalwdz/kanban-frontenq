@@ -1576,10 +1576,21 @@ input:focus, select:focus {
   transition: all 0.3s ease;
 }
 
+.control-zone-card.has-guests {
+  background: #f0fdf4;
+  border-color: #86efac;
+  box-shadow: 0 0 0 3px rgba(134, 239, 172, 0.1);
+}
+
 .control-zone-card:hover {
   border-color: #cbd5e1;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   transform: translateY(-2px);
+}
+
+.control-zone-card.has-guests:hover {
+  border-color: #4ade80;
+  box-shadow: 0 4px 12px rgba(74, 222, 128, 0.2);
 }
 
 .control-zone-info h4 {
@@ -1587,6 +1598,23 @@ input:focus, select:focus {
   color: #1f2937;
   font-size: 18px;
   font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-indicator {
+  font-size: 12px;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
 }
 
 .control-zone-info p {

@@ -8,6 +8,17 @@ interface Table {
   branch: string;
 }
 
+interface Booking {
+  id: string;
+  name: string;
+  time: string;
+  guests: number;
+  phone: string;
+  tableId: number;
+  branch: string;
+  isActive: boolean;
+}
+
 interface AdminPanelProps {
   onBack: () => void;
 }
@@ -17,6 +28,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   console.log('🔍 AdminPanel API_URL:', API_URL);
   
   const [tables, setTables] = useState<Table[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
   const [currentBranch, setCurrentBranch] = useState<'МСК' | 'Полевая'>('МСК');
   const [editingTable, setEditingTable] = useState<Table | null>(null);
   const [editForm, setEditForm] = useState({ name: '', capacity: 4 });
@@ -27,16 +39,32 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   // Состояние для контроля порядка
   const [activeView, setActiveView] = useState<'zones' | 'control'>('zones');
   const [telegramChatId, setTelegramChatId] = useState<string>(() => {
-    return localStorage.getItem('telegramChatId') || '885843500';
+    return localStorage.getItem('telegramChatId') || '-1002686555288';
+  });
+  const [telegramThreadId, setTelegramThreadId] = useState<string>(() => {
+    return localStorage.getItem('telegramThreadId') || '7';
   });
   const [customMessage, setCustomMessage] = useState<string>('');
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [sendingZoneId, setSendingZoneId] = useState<number | null>(null);
 
-  // Загрузка зон
-  useEffect(() => {
-    loadTables();
-  }, []);
+  // Загрузка бронирований
+  const loadBookings = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/bookings`);
+      const data = await response.json();
+      setBookings(data);
+    } catch (error) {
+      console.error('Error loading bookings:', error);
+    }
+  };
+
+  // Проверка есть ли активные гости в зоне
+  const hasActiveGuests = (tableId: number): boolean => {
+    return bookings.some(booking => 
+      booking.tableId === tableId && booking.isActive
+    );
+  };
 
   const loadTables = async () => {
     try {
@@ -47,6 +75,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       console.error('Error loading tables:', error);
     }
   };
+
+  // Загрузка данных при монтировании
+  useEffect(() => {
+    loadTables();
+    loadBookings();
+  }, []);
 
   // Получаем зоны текущего филиала и сортируем по номеру
   const currentTables = tables
@@ -154,6 +188,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     localStorage.setItem('telegramChatId', chatId);
   };
 
+  // Сохранение Telegram Thread ID
+  const saveTelegramThreadId = (threadId: string) => {
+    setTelegramThreadId(threadId);
+    localStorage.setItem('telegramThreadId', threadId);
+  };
+
   // Отправка уведомления о неубранной зоне
   const handleNotifyDirtyZone = async (table: Table) => {
     if (!telegramChatId) {
@@ -169,7 +209,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
         body: JSON.stringify({
           branch: table.branch,
           zoneName: table.name,
-          chatId: telegramChatId
+          chatId: telegramChatId,
+          threadId: telegramThreadId ? parseInt(telegramThreadId) : null
         })
       });
 
@@ -208,7 +249,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: customMessage,
-          chatId: telegramChatId
+          chatId: telegramChatId,
+          threadId: telegramThreadId ? parseInt(telegramThreadId) : null
         })
       });
 
@@ -300,10 +342,22 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                     type="text"
                     value={telegramChatId}
                     onChange={(e) => saveTelegramChatId(e.target.value)}
-                    placeholder="Введите ваш Chat ID"
+                    placeholder="-1002686555288"
                   />
                   <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: '#6b7280' }}>
-                    💡 Чтобы узнать ваш Chat ID, напишите боту @userinfobot в Telegram
+                    💡 ID группового чата (отрицательное число)
+                  </p>
+                </div>
+                <div>
+                  <label>Thread ID (для форум-чатов)</label>
+                  <input
+                    type="text"
+                    value={telegramThreadId}
+                    onChange={(e) => saveTelegramThreadId(e.target.value)}
+                    placeholder="7"
+                  />
+                  <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: '#6b7280' }}>
+                    💡 ID топика "Внутренний порядок" (оставьте 7 для вашего чата)
                   </p>
                 </div>
               </div>
@@ -377,26 +431,35 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
             <div className="admin-form-card">
               <h3>🚨 {currentBranch} - Контроль зон</h3>
               <div className="control-zones-grid">
-                {currentTables.map((table) => (
-                  <div key={table.id} className="control-zone-card">
-                    <div className="control-zone-info">
-                      <h4>{table.name}</h4>
-                      <p>{table.capacity} чел.</p>
-                    </div>
-                    <button
-                      onClick={() => handleNotifyDirtyZone(table)}
-                      className="notify-btn"
-                      disabled={sendingZoneId === table.id}
-                      type="button"
+                {currentTables.map((table) => {
+                  const hasGuests = hasActiveGuests(table.id);
+                  return (
+                    <div 
+                      key={table.id} 
+                      className={`control-zone-card ${hasGuests ? 'has-guests' : ''}`}
                     >
-                      {sendingZoneId === table.id ? (
-                        '⏳ Отправка...'
-                      ) : (
-                        '🚨 НЕ УБРАНА'
-                      )}
-                    </button>
-                  </div>
-                ))}
+                      <div className="control-zone-info">
+                        <h4>
+                          {hasGuests && <span className="status-indicator">🟢</span>}
+                          {table.name}
+                        </h4>
+                        <p>{table.capacity} чел.</p>
+                      </div>
+                      <button
+                        onClick={() => handleNotifyDirtyZone(table)}
+                        className="notify-btn"
+                        disabled={sendingZoneId === table.id}
+                        type="button"
+                      >
+                        {sendingZoneId === table.id ? (
+                          '⏳ Отправка...'
+                        ) : (
+                          '🚨 НЕ УБРАНА'
+                        )}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
               {currentTables.length === 0 && (
                 <p style={{ textAlign: 'center', color: '#6b7280', padding: '20px' }}>

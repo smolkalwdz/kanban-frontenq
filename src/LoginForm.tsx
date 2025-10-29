@@ -11,7 +11,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, onCancel }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === '20192019') {
+    if (password === '95859585') {
       onLogin();
     } else {
       setError('Неверный пароль');
