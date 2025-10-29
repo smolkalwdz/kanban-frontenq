@@ -29,7 +29,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   
   const [tables, setTables] = useState<Table[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [currentBranch, setCurrentBranch] = useState<'МСК' | 'Полевая'>('МСК');
+  const [currentBranch, setCurrentBranch] = useState<'МСК' | 'Полевая'>(() => {
+    const saved = localStorage.getItem('adminBranch');
+    return (saved === 'МСК' || saved === 'Полевая') ? saved : 'МСК';
+  });
   const [editingTable, setEditingTable] = useState<Table | null>(null);
   const [editForm, setEditForm] = useState({ name: '', capacity: 4 });
   const [addForm, setAddForm] = useState({ name: '', capacity: 4 });
@@ -192,6 +195,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const saveTelegramThreadId = (threadId: string) => {
     setTelegramThreadId(threadId);
     localStorage.setItem('telegramThreadId', threadId);
+  };
+
+  // Изменение филиала с сохранением
+  const changeBranch = (branch: 'МСК' | 'Полевая') => {
+    setCurrentBranch(branch);
+    localStorage.setItem('adminBranch', branch);
   };
 
   // Отправка уведомления о неубранной зоне
@@ -411,14 +420,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
               <h3>🏢 Выберите филиал</h3>
               <div className="branch-selector">
                 <button 
-                  onClick={() => setCurrentBranch('МСК')}
+                  onClick={() => changeBranch('МСК')}
                   className={`branch-btn ${currentBranch === 'МСК' ? 'active' : ''}`}
                   type="button"
                 >
                   🏢 МСК ({tables.filter(t => t.branch === 'МСК').length} зон)
                 </button>
                 <button 
-                  onClick={() => setCurrentBranch('Полевая')}
+                  onClick={() => changeBranch('Полевая')}
                   className={`branch-btn ${currentBranch === 'Полевая' ? 'active' : ''}`}
                   type="button"
                 >
