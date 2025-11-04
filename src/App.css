@@ -417,8 +417,8 @@ body {
 .booking-card.hh-active::after {
   content: 'СЧ';
   position: absolute;
-  top: -12px;
-  right: -12px;
+  top: 2px;
+  right: 2px;
   background: #f59e0b;
   color: #fff;
   font-weight: 900;
@@ -1662,5 +1662,95 @@ input:focus, select:focus {
   
   .control-zones-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ========== ТАЙМЕР КУРЕНИЯ ========== */
+
+/* Таймер курения в левом верхнем углу карточки */
+.smoking-timer {
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: white;
+  font-weight: 900;
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  letter-spacing: 0.3px;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.5);
+  z-index: 10;
+  white-space: nowrap;
+  animation: timerPulse 2s ease-in-out infinite;
+}
+
+/* Анимация пульсации таймера */
+@keyframes timerPulse {
+  0%, 100% {
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.5);
+  }
+  50% {
+    box-shadow: 0 6px 16px rgba(59, 130, 246, 0.7);
+  }
+}
+
+/* Таймер при истечении времени */
+.smoking-timer.expired {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.6);
+  animation: timerExpiredBlink 0.8s ease-in-out infinite;
+  font-size: 10px;
+}
+
+/* Анимация мигания истекшего таймера */
+@keyframes timerExpiredBlink {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.6);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+    box-shadow: 0 6px 20px rgba(239, 68, 68, 0.9);
+  }
+}
+
+/* Мигание карточки при истечении таймера курения */
+.booking-card.smoking-timer-expired {
+  animation: smokingCardBlink 1s ease-in-out infinite;
+  outline: 3px solid #ef4444;
+  outline-offset: 2px;
+}
+
+/* Анимация мигания карточки */
+@keyframes smokingCardBlink {
+  0%, 100% {
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.3) inset, 0 0 20px rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.6) inset, 0 0 30px rgba(239, 68, 68, 0.7);
+  }
+}
+
+/* Яркое внутреннее мигание для истекшего таймера */
+.booking-card.smoking-timer-expired::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 0, 0, 0.15);
+  border-radius: inherit;
+  animation: smokingOverlayBlink 0.6s ease-in-out infinite;
+  mix-blend-mode: normal;
+  pointer-events: none;
+}
+
+@keyframes smokingOverlayBlink {
+  0%, 100% {
+    background: rgba(255, 0, 0, 0.15);
+  }
+  50% {
+    background: rgba(255, 0, 0, 0.35);
   }
 }
