@@ -26,6 +26,7 @@ interface Booking {
   hasVR?: boolean;
   hasShisha?: boolean;
   isHappyHours?: boolean;
+  smokingTimerEnd?: string; // ISO дата окончания таймера курения
 }
 
 interface BoardProps {
@@ -58,6 +59,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     hasVR: false,
     hasShisha: false,
     isHappyHours: false,
+    smokingTimer: false, // галочка "МНЕ ТОЛЬКО ПОКУРИТЬ"
   });
   // Состояние для контекстного меню
   const [contextMenu, setContextMenu] = useState<{
@@ -134,6 +136,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       hasVR: false,
       hasShisha: false,
       isHappyHours: false,
+      smokingTimer: false,
     });
   };
 
@@ -192,6 +195,13 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     e.preventDefault();
     if (!quickBooking || !quickForm.name.trim() || !quickForm.time.trim()) return;
 
+    // Если галочка "МНЕ ТОЛЬКО ПОКУРИТЬ" активна, устанавливаем таймер на 1.5 часа
+    let smokingTimerEnd: string | undefined = undefined;
+    if (quickForm.smokingTimer) {
+      const timerEnd = new Date(getNow().getTime() + 90 * 60 * 1000); // 90 минут (1.5 часа)
+      smokingTimerEnd = timerEnd.toISOString();
+    }
+
     const newBooking: Omit<Booking, 'id'> = {
       name: quickForm.name.trim(),
       time: quickForm.time.trim(),
@@ -205,6 +215,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       hasVR: !!quickForm.hasVR,
       hasShisha: !!quickForm.hasShisha,
       isHappyHours: !!quickForm.isHappyHours,
+      smokingTimerEnd,
     };
 
     try {
@@ -233,6 +244,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
         hasVR: false,
         hasShisha: false,
         isHappyHours: false,
+        smokingTimer: false,
       });
     } catch (error) {
       console.error('Error creating quick booking:', error);
@@ -374,6 +386,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     hasVR: boolean;
     hasShisha: boolean;
     isHappyHours: boolean;
+    smokingTimer: boolean;
   }>({
     name: '',
     time: '',
@@ -383,6 +396,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     hasVR: false,
     hasShisha: false,
     isHappyHours: false,
+    smokingTimer: false,
   });
 
   // Полностью отключаем любое вмешательство в работу браузера
@@ -611,6 +625,8 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
 
   const handleEditBooking = (booking: Booking) => {
     setEditingBooking(booking);
+    // Проверяем, есть ли активный таймер курения
+    const hasActiveTimer = booking.smokingTimerEnd && new Date(booking.smokingTimerEnd) > getNow();
     setEditForm({
       name: booking.name,
       time: booking.time,
@@ -620,6 +636,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       hasVR: booking.hasVR || false,
       hasShisha: booking.hasShisha || false,
       isHappyHours: booking.isHappyHours || false,
+      smokingTimer: !!hasActiveTimer,
     });
   };
 
@@ -627,6 +644,15 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   const handleSaveBookingEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingBooking || !editForm.name.trim() || !editForm.time.trim() || !editForm.guests) return;
+    
+    // Если галочка "МНЕ ТОЛЬКО ПОКУРИТЬ" активна, устанавливаем таймер на 1.5 часа
+    // Если галочка снята, очищаем таймер (null)
+    let smokingTimerEnd: string | null = null;
+    if (editForm.smokingTimer) {
+      const timerEnd = new Date(getNow().getTime() + 90 * 60 * 1000); // 90 минут (1.5 часа)
+      smokingTimerEnd = timerEnd.toISOString();
+    }
+    
     const res = await fetch(`${API_URL}/api/bookings/${editingBooking.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -640,17 +666,18 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
         hasVR: editForm.hasVR,
         hasShisha: editForm.hasShisha,
         isHappyHours: editForm.isHappyHours,
+        smokingTimerEnd,
       }),
     });
     const updated = await res.json();
     setBookings(prev => prev.map(b => b.id === editingBooking.id ? { ...updated, isActive: b.isActive } : b));
     setEditingBooking(null);
-    setEditForm({ name: '', time: '', guests: 1, phone: '', comment: '', hasVR: false, hasShisha: false, isHappyHours: false });
+    setEditForm({ name: '', time: '', guests: 1, phone: '', comment: '', hasVR: false, hasShisha: false, isHappyHours: false, smokingTimer: false });
   };
 
   const handleCancelBookingEdit = () => {
     setEditingBooking(null);
-    setEditForm({ name: '', time: '', guests: 1, phone: '', comment: '', hasVR: false, hasShisha: false, isHappyHours: false });
+    setEditForm({ name: '', time: '', guests: 1, phone: '', comment: '', hasVR: false, hasShisha: false, isHappyHours: false, smokingTimer: false });
   };
 
   const handleToggleActive = async (booking: Booking) => {
@@ -714,7 +741,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     return hours > 18 || (hours === 18 && minutes >= 50);
   };
 
-  const shouldHighlightHH = (b: Booking) => !!b.isHappyHours && isHHTimeNow();
+  const shouldHighlightHH = (b: Booking) => !!b.isHappyHours;
 
   const isHHWarningWindow = () => {
     const now = getNow();
@@ -724,6 +751,107 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   };
 
   const shouldBlinkHH = (b: Booking) => !!b.isHappyHours && isHHWarningWindow();
+
+  // ========== ЛОГИКА ТАЙМЕРА КУРЕНИЯ ==========
+  
+  // Функция для получения оставшегося времени таймера курения
+  const getSmokingTimeRemaining = (booking: Booking): { minutes: number; seconds: number; isExpired: boolean; expiredMoreThan2Min: boolean } | null => {
+    if (!booking.smokingTimerEnd) return null;
+    
+    const now = getNow();
+    const endTime = new Date(booking.smokingTimerEnd);
+    const diffMs = endTime.getTime() - now.getTime();
+    
+    if (diffMs <= 0) {
+      // Проверяем, прошло ли более 2 минут после истечения
+      const expiredMs = Math.abs(diffMs);
+      const expiredMoreThan2Min = expiredMs > (2 * 60 * 1000); // 2 минуты
+      
+      return { minutes: 0, seconds: 0, isExpired: true, expiredMoreThan2Min };
+    }
+    
+    const totalSeconds = Math.floor(diffMs / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    
+    return { minutes, seconds, isExpired: false, expiredMoreThan2Min: false };
+  };
+  
+  // Проверка, истек ли таймер курения (для мигания) - но не более 2 минут назад
+  const isSmokingTimerExpired = (b: Booking): boolean => {
+    const remaining = getSmokingTimeRemaining(b);
+    // Мигание только если истек, но прошло менее 2 минут
+    return remaining !== null && remaining.isExpired && !remaining.expiredMoreThan2Min;
+  };
+  
+  // Форматирование времени таймера для отображения
+  const formatSmokingTimer = (booking: Booking): string | null => {
+    const remaining = getSmokingTimeRemaining(booking);
+    if (!remaining) return null;
+    
+    // Если прошло более 2 минут после истечения - не показываем ничего
+    if (remaining.expiredMoreThan2Min) {
+      return null;
+    }
+    
+    if (remaining.isExpired) {
+      return '⏰ ПРЕДЛОЖИ Кальян или тариф';
+    }
+    
+    const mins = String(remaining.minutes).padStart(2, '0');
+    const secs = String(remaining.seconds).padStart(2, '0');
+    return `🚬 ${mins}:${secs}`;
+  };
+
+  // Уведомление о завершении таймера курения
+  useEffect(() => {
+    const notifiedTimersKey = 'smoking_notified_timers';
+    const getNotifiedTimers = (): Set<string> => {
+      try {
+        const stored = localStorage.getItem(notifiedTimersKey);
+        return stored ? new Set(JSON.parse(stored)) : new Set();
+      } catch {
+        return new Set();
+      }
+    };
+    
+    const saveNotifiedTimers = (timers: Set<string>) => {
+      localStorage.setItem(notifiedTimersKey, JSON.stringify(Array.from(timers)));
+    };
+    
+    const checkAndNotify = () => {
+      const notifiedTimers = getNotifiedTimers();
+      const currentBookingsWithExpiredTimer = bookings.filter(b => 
+        b.branch === currentBranch && 
+        b.smokingTimerEnd && 
+        isSmokingTimerExpired(b) &&
+        !notifiedTimers.has(b.id)
+      );
+      
+      currentBookingsWithExpiredTimer.forEach(booking => {
+        const table = tables.find(t => t.id === Number(booking.tableId));
+        const zoneName = table?.name || 'Зона';
+        alert(`🚬 ВРЕМЯ ВЫШЛО!\n\n${zoneName}\n${booking.name}\n\nПредложите еще один кальян или тариф!`);
+        notifiedTimers.add(booking.id);
+      });
+      
+      if (currentBookingsWithExpiredTimer.length > 0) {
+        saveNotifiedTimers(notifiedTimers);
+      }
+      
+      // Очищаем старые уведомления (для броней, которые уже удалены)
+      const currentBookingIds = new Set(bookings.map(b => b.id));
+      const cleanedTimers = new Set(Array.from(notifiedTimers).filter(id => currentBookingIds.has(id)));
+      if (cleanedTimers.size !== notifiedTimers.size) {
+        saveNotifiedTimers(cleanedTimers);
+      }
+    };
+    
+    const interval = setInterval(checkAndNotify, 1000); // Проверяем каждую секунду
+    return () => clearInterval(interval);
+  }, [bookings, currentBranch, tables]);
+
+  // ========== КОНЕЦ ЛОГИКИ ТАЙМЕРА КУРЕНИЯ ==========
 
   // Ежедневное уведомление в 18:50, если есть хотя бы одна HH-бронирование в текущем филиале
   useEffect(() => {
@@ -875,7 +1003,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
               />
             </div>
 
-            <div style={{display: 'flex', gap: '12px', alignItems: 'center'}}>
+            <div style={{display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap'}}>
               <label style={{display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px'}}>
                 <input
                   name="hasVR"
@@ -902,6 +1030,15 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                   onChange={handleEditFormChange}
                 />
                 Счастливые часы
+              </label>
+              <label style={{display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: '700'}}>
+                <input
+                  name="smokingTimer"
+                  type="checkbox"
+                  checked={editForm.smokingTimer}
+                  onChange={handleEditFormChange}
+                />
+                МНЕ ТОЛЬКО ПОКУРИТЬ
               </label>
             </div>
 
@@ -1164,14 +1301,24 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                   {currentBookings.filter(b => String(b.tableId) === String(table.id)).length === 0 && (
                     <div className="no-bookings">Нет броней</div>
                   )}
-                  {currentBookings.filter(b => String(b.tableId) === String(table.id)).map((b) => (
+                  {currentBookings.filter(b => String(b.tableId) === String(table.id)).map((b) => {
+                    const smokingTimerText = formatSmokingTimer(b);
+                    const isTimerExpired = isSmokingTimerExpired(b);
+                    
+                    return (
                 <div
                   key={b.id}
                   draggable
                   onDragStart={() => handleDragStart(b)}
                   onClick={(e) => e.stopPropagation()}
-                  className={`booking-card ${b.isActive ? 'green' : 'red'} ${shouldHighlightHH(b) ? 'hh-active' : ''} ${shouldBlinkHH(b) ? 'hh-blink' : ''}`}
+                  className={`booking-card ${b.isActive ? 'green' : 'red'} ${shouldHighlightHH(b) ? 'hh-active' : ''} ${shouldBlinkHH(b) ? 'hh-blink' : ''} ${isTimerExpired ? 'smoking-timer-expired' : ''}`}
                     >
+                      {/* Таймер курения в левом верхнем углу */}
+                      {smokingTimerText && (
+                        <div className={`smoking-timer ${isTimerExpired ? 'expired' : ''}`}>
+                          {smokingTimerText}
+                        </div>
+                      )}
                       <div className="booking-time">{b.time}</div>
                       <div className="booking-name">{b.name}</div>
                       <div className="booking-guests">{b.guests} чел.</div>
@@ -1194,7 +1341,8 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                         </button>
                       </div>
                   </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 <div className="zone-card-footer">{table.capacity} чел.</div>
                 </div>
@@ -1295,7 +1443,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
               />
             </div>
 
-            <div className="checkbox-row" style={{display: 'flex', gap: '16px', alignItems: 'center'}}>
+            <div className="checkbox-row" style={{display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap'}}>
               <label style={{display: 'flex', alignItems: 'center', gap: '6px', fontSize: '16px'}}>
                 <input
                   name="hasVR"
@@ -1322,6 +1470,15 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                   onChange={handleQuickFormChange}
                 />
                 Счастливые часы
+              </label>
+              <label style={{display: 'flex', alignItems: 'center', gap: '6px', fontSize: '16px', fontWeight: '700'}}>
+                <input
+                  name="smokingTimer"
+                  type="checkbox"
+                  checked={quickForm.smokingTimer}
+                  onChange={handleQuickFormChange}
+                />
+                МНЕ ТОЛЬКО ПОКУРИТЬ
               </label>
             </div>
 
