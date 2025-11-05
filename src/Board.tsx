@@ -645,12 +645,18 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     e.preventDefault();
     if (!editingBooking || !editForm.name.trim() || !editForm.time.trim() || !editForm.guests) return;
     
-    // Если галочка "МНЕ ТОЛЬКО ПОКУРИТЬ" активна, устанавливаем таймер на 1.5 часа
+    // Если галочка "МНЕ ТОЛЬКО ПОКУРИТЬ" активна, сохраняем существующий таймер или создаем новый
     // Если галочка снята, очищаем таймер (null)
     let smokingTimerEnd: string | null = null;
     if (editForm.smokingTimer) {
-      const timerEnd = new Date(getNow().getTime() + 90 * 60 * 1000); // 90 минут (1.5 часа)
-      smokingTimerEnd = timerEnd.toISOString();
+      // Если таймер уже был установлен, сохраняем его
+      if (editingBooking.smokingTimerEnd) {
+        smokingTimerEnd = editingBooking.smokingTimerEnd;
+      } else {
+        // Если таймера не было, создаем новый
+        const timerEnd = new Date(getNow().getTime() + 90 * 60 * 1000); // 90 минут (1.5 часа)
+        smokingTimerEnd = timerEnd.toISOString();
+      }
     }
     
     const res = await fetch(`${API_URL}/api/bookings/${editingBooking.id}`, {
