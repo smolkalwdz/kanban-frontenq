@@ -19,6 +19,12 @@ interface Booking {
   isActive: boolean;
 }
 
+interface Staff {
+  id: string;
+  name: string;
+  telegramId: string;
+}
+
 interface AdminPanelProps {
   onBack: () => void;
 }
@@ -39,17 +45,15 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const [isAddingTable, setIsAddingTable] = useState(false);
   const [overrideInput, setOverrideInput] = useState<string>('');
   
-  // Состояние для контроля порядка
-  const [activeView, setActiveView] = useState<'zones' | 'control'>('zones');
-  const [telegramChatId, setTelegramChatId] = useState<string>(() => {
-    return localStorage.getItem('telegramChatId') || '-1002686555288';
-  });
-  const [telegramThreadId, setTelegramThreadId] = useState<string>(() => {
-    return localStorage.getItem('telegramThreadId') || '7';
-  });
-  const [customMessage, setCustomMessage] = useState<string>('');
-  const [isSendingMessage, setIsSendingMessage] = useState(false);
+  // Состояние для вкладок
+  const [activeView, setActiveView] = useState<'zones' | 'control' | 'staff'>('zones');
   const [sendingZoneId, setSendingZoneId] = useState<number | null>(null);
+  
+  // Состояния для сотрудников
+  const [staff, setStaff] = useState<Staff[]>([]);
+  const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
+  const [staffForm, setStaffForm] = useState({ name: '', telegramId: '' });
+  const [isAddingStaff, setIsAddingStaff] = useState(false);
 
   // Загрузка бронирований
   const loadBookings = async () => {
@@ -79,10 +83,22 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     }
   };
 
+  // Загрузка сотрудников
+  const loadStaff = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/staff`);
+      const data = await response.json();
+      setStaff(data);
+    } catch (error) {
+      console.error('Error loading staff:', error);
+    }
+  };
+
   // Загрузка данных при монтировании
   useEffect(() => {
     loadTables();
     loadBookings();
+    loadStaff();
   }, []);
 
   // Получаем зоны текущего филиала и сортируем по номеру
@@ -176,6 +192,102 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     }
   };
 
+  // ========== ФУНКЦИИ ДЛЯ РАБОТЫ С СОТРУДНИКАМИ ==========
+
+  // Добавление сотрудника
+  const handleAddStaff = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!staffForm.name.trim()) {
+      alert('Введите имя и фамилию');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/api/staff`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(staffForm)
+      });
+
+      if (response.ok) {
+        await loadStaff();
+        setStaffForm({ name: '', telegramId: '' });
+        setIsAddingStaff(false);
+        alert('✅ Сотрудник добавлен');
+      } else {
+        const error = await response.json();
+        alert(`Ошибка: ${error.error}`);
+      }
+    } catch (error) {
+      console.error('Error adding staff:', error);
+      alert('Ошибка при добавлении сотрудника');
+    }
+  };
+
+  // Редактирование сотрудника
+  const handleEditStaff = (employee: Staff) => {
+    setEditingStaff(employee);
+    setStaffForm({ name: employee.name, telegramId: employee.telegramId });
+  };
+
+  // Сохранение изменений сотрудника
+  const handleSaveStaff = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!editingStaff || !staffForm.name.trim()) return;
+
+    try {
+      const response = await fetch(`${API_URL}/api/staff/${editingStaff.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(staffForm)
+      });
+
+      if (response.ok) {
+        await loadStaff();
+        setEditingStaff(null);
+        setStaffForm({ name: '', telegramId: '' });
+        alert('✅ Сотрудник обновлён');
+      } else {
+        const error = await response.json();
+        alert(`Ошибка: ${error.error}`);
+      }
+    } catch (error) {
+      console.error('Error updating staff:', error);
+      alert('Ошибка при обновлении сотрудника');
+    }
+  };
+
+  // Удаление сотрудника
+  const handleDeleteStaff = async (id: string) => {
+    if (!window.confirm('Вы уверены, что хотите удалить этого сотрудника?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/api/staff/${id}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        await loadStaff();
+        alert('🗑️ Сотрудник удалён');
+      } else {
+        alert('Ошибка при удалении сотрудника');
+      }
+    } catch (error) {
+      console.error('Error deleting staff:', error);
+      alert('Ошибка при удалении сотрудника');
+    }
+  };
+
+  // Отмена редактирования
+  const handleCancelStaffEdit = () => {
+    setEditingStaff(null);
+    setStaffForm({ name: '', telegramId: '' });
+  };
+
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     if (editingTable) {
@@ -185,46 +297,39 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     }
   };
 
-  // Сохранение Telegram Chat ID
-  const saveTelegramChatId = (chatId: string) => {
-    setTelegramChatId(chatId);
-    localStorage.setItem('telegramChatId', chatId);
-  };
-
-  // Сохранение Telegram Thread ID
-  const saveTelegramThreadId = (threadId: string) => {
-    setTelegramThreadId(threadId);
-    localStorage.setItem('telegramThreadId', threadId);
-  };
-
   // Изменение филиала с сохранением
   const changeBranch = (branch: 'МСК' | 'Полевая') => {
     setCurrentBranch(branch);
     localStorage.setItem('adminBranch', branch);
   };
 
-  // Отправка уведомления о неубранной зоне
+  // Отправка уведомления сотрудникам на смене (персонально)
   const handleNotifyDirtyZone = async (table: Table) => {
-    if (!telegramChatId) {
-      alert('Пожалуйста, введите Chat ID Telegram в настройках');
-      return;
-    }
-
     setSendingZoneId(table.id);
     try {
-      const response = await fetch(`${API_URL}/api/telegram/notify-dirty-zone`, {
+      // Проверяем тестовое время из localStorage
+      const testTimeOverride = localStorage.getItem('appTimeOverride');
+      
+      const payload: any = {
+        branch: table.branch,
+        zoneName: table.name
+      };
+      
+      // Если установлено тестовое время - передаём его backend
+      if (testTimeOverride) {
+        payload.testDate = testTimeOverride;
+        console.log(`🧪 Отправка уведомления с тестовым временем: ${new Date(testTimeOverride).toLocaleString('ru-RU')}`);
+      }
+      
+      const response = await fetch(`${API_URL}/api/telegram/notify-staff-on-shift`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          branch: table.branch,
-          zoneName: table.name,
-          chatId: telegramChatId,
-          threadId: telegramThreadId ? parseInt(telegramThreadId) : null
-        })
+        body: JSON.stringify(payload)
       });
 
       if (response.ok) {
-        alert(`✅ Уведомление отправлено: ${table.branch}, ${table.name} — НЕ УБРАНА`);
+        const result = await response.json();
+        alert(`✅ Уведомление отправлено сотрудникам на смене!\n${result.message}`);
       } else {
         const error = await response.json();
         alert(`❌ Ошибка: ${error.error || 'Не удалось отправить уведомление'}`);
@@ -237,53 +342,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     }
   };
 
-  // Отправка произвольного сообщения
-  const handleSendCustomMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!telegramChatId) {
-      alert('Пожалуйста, введите Chat ID Telegram в настройках');
-      return;
-    }
-
-    if (!customMessage.trim()) {
-      alert('Пожалуйста, введите сообщение');
-      return;
-    }
-
-    setIsSendingMessage(true);
-    try {
-      const response = await fetch(`${API_URL}/api/telegram/send-message`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: customMessage,
-          chatId: telegramChatId,
-          threadId: telegramThreadId ? parseInt(telegramThreadId) : null
-        })
-      });
-
-      if (response.ok) {
-        alert('✅ Сообщение отправлено!');
-        setCustomMessage('');
-      } else {
-        const error = await response.json();
-        alert(`❌ Ошибка: ${error.error || 'Не удалось отправить сообщение'}`);
-      }
-    } catch (error) {
-      console.error('Error sending message:', error);
-      alert('❌ Ошибка при отправке сообщения');
-    } finally {
-      setIsSendingMessage(false);
-    }
-  };
-
   return (
     <div>
       {/* Заголовок */}
       <div className="header">
         <div>
-          <h1>⚙️ Админ панель - {activeView === 'zones' ? 'Управление зонами' : 'Контроль порядка'}</h1>
+          <h1>⚙️ Админ панель - {activeView === 'zones' ? 'Управление зонами' : activeView === 'staff' ? 'Сотрудники' : 'Контроль порядка'}</h1>
           <button onClick={onBack} className="back-btn">
             ← Вернуться к доске
           </button>
@@ -300,6 +364,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
             className={activeView === 'control' ? 'active' : ''}
           >
             🧹 Контроль порядка
+          </button>
+          <button 
+            onClick={() => setActiveView('staff')}
+            className={activeView === 'staff' ? 'active' : ''}
+          >
+            👥 Сотрудники
           </button>
         </div>
       </div>
@@ -329,6 +399,21 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
               <span className="stat-item">
                 📱 Telegram уведомления
               </span>
+              {localStorage.getItem('appTimeOverride') && (
+                <span 
+                  className="stat-item" 
+                  title={`Тестовое время: ${new Date(localStorage.getItem('appTimeOverride') || '').toLocaleString('ru-RU')}`}
+                  style={{ 
+                    background: '#fde68a', 
+                    color: '#92400e', 
+                    padding: '4px 8px', 
+                    borderRadius: '6px',
+                    fontWeight: '600'
+                  }}
+                >
+                  🧪 Тест-режим: {new Date(localStorage.getItem('appTimeOverride') || '').toLocaleDateString('ru-RU')}
+                </span>
+              )}
             </div>
           </div>
           <div className="info-bar-icon">
@@ -341,78 +426,22 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
         {/* ========== СЕКЦИЯ: КОНТРОЛЬ ПОРЯДКА ========== */}
         {activeView === 'control' && (
           <>
-            {/* Настройки Telegram */}
+            {/* Информация о системе уведомлений */}
             <div className="admin-form-card">
-              <h3>⚙️ Настройки Telegram</h3>
-              <div className="admin-form">
-                <div>
-                  <label>Chat ID Telegram *</label>
-                  <input
-                    type="text"
-                    value={telegramChatId}
-                    onChange={(e) => saveTelegramChatId(e.target.value)}
-                    placeholder="-1002686555288"
-                  />
-                  <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: '#6b7280' }}>
-                    💡 ID группового чата (отрицательное число)
-                  </p>
-                </div>
-                <div>
-                  <label>Thread ID (для форум-чатов)</label>
-                  <input
-                    type="text"
-                    value={telegramThreadId}
-                    onChange={(e) => saveTelegramThreadId(e.target.value)}
-                    placeholder="7"
-                  />
-                  <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: '#6b7280' }}>
-                    💡 ID топика "Внутренний порядок" (оставьте 7 для вашего чата)
-                  </p>
-                </div>
+              <h3>💡 Как работает система уведомлений</h3>
+              <div style={{ 
+                padding: '15px', 
+                background: 'rgba(59, 130, 246, 0.1)',
+                borderRadius: '10px',
+                border: '1px solid rgba(59, 130, 246, 0.3)'
+              }}>
+                <ul style={{ margin: 0, paddingLeft: '20px', color: '#374151', fontSize: '14px', lineHeight: '1.8' }}>
+                  <li><strong>Персональные уведомления:</strong> сообщения отправляются ЛИЧНО сотрудникам на смене</li>
+                  <li><strong>Автоматическое определение:</strong> система сама определяет кто на смене из Google Sheets</li>
+                  <li><strong>База сотрудников:</strong> Telegram ID берутся из вкладки "Сотрудники"</li>
+                  <li><strong>Требования:</strong> сотрудник должен написать /start боту в Telegram</li>
+                </ul>
               </div>
-            </div>
-
-            {/* Быстрая отправка произвольного сообщения */}
-            <div className="admin-form-card">
-              <h3>📤 Отправить сообщение в Telegram</h3>
-              <form onSubmit={handleSendCustomMessage} className="admin-form">
-                <div>
-                  <label>Сообщение *</label>
-                  <textarea
-                    value={customMessage}
-                    onChange={(e) => setCustomMessage(e.target.value)}
-                    placeholder="Введите текст сообщения..."
-                    rows={4}
-                    style={{
-                      padding: '10px 12px',
-                      borderRadius: '8px',
-                      border: '1px solid #d1d5db',
-                      width: '100%',
-                      fontSize: '14px',
-                      fontFamily: 'inherit',
-                      resize: 'vertical'
-                    }}
-                    required
-                  />
-                </div>
-                <div className="form-actions">
-                  <button 
-                    type="submit" 
-                    className="save-btn"
-                    disabled={isSendingMessage}
-                  >
-                    {isSendingMessage ? '⏳ Отправка...' : '📨 Отправить'}
-                  </button>
-                  <button
-                    type="button"
-                    className="cancel-btn"
-                    onClick={() => setCustomMessage('')}
-                    disabled={isSendingMessage}
-                  >
-                    Очистить
-                  </button>
-                </div>
-              </form>
             </div>
 
             {/* Выбор филиала для контроля */}
@@ -528,6 +557,71 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
             )}
           </form>
         </div>
+
+        {/* Тестовый таймер курения */}
+        <div className="admin-form-card">
+          <h3>🚬 Тестовый таймер "МНЕ ТОЛЬКО ПОКУРИТЬ"</h3>
+          <p style={{ margin: '0 0 15px 0', fontSize: '14px', color: '#6b7280' }}>
+            Для тестирования уведомлений. В тест-режиме таймер составит <strong>30 секунд</strong> вместо 90 минут.
+          </p>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <button
+              type="button"
+              onClick={() => {
+                localStorage.setItem('smokingTimerTestMode', 'true');
+                alert('✅ Тест-режим таймера ВКЛЮЧЕН!\n\nТеперь "МНЕ ТОЛЬКО ПОКУРИТЬ" = 30 секунд\n(вместо 90 минут)');
+              }}
+              style={{
+                background: localStorage.getItem('smokingTimerTestMode') === 'true' 
+                  ? 'linear-gradient(135deg, #10b981, #34d399)' 
+                  : 'linear-gradient(135deg, #6b7280, #9ca3af)',
+                color: 'white',
+                border: 'none',
+                padding: '10px 20px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontWeight: '600',
+                fontSize: '14px'
+              }}
+            >
+              {localStorage.getItem('smokingTimerTestMode') === 'true' ? '✅ Включен (30 сек)' : '🔄 Включить'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                localStorage.removeItem('smokingTimerTestMode');
+                alert('❌ Тест-режим таймера ВЫКЛЮЧЕН!\n\nТеперь "МНЕ ТОЛЬКО ПОКУРИТЬ" = 90 минут\n(стандартный режим)');
+              }}
+              style={{
+                background: 'linear-gradient(135deg, #ef4444, #f87171)',
+                color: 'white',
+                border: 'none',
+                padding: '10px 20px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontWeight: '600',
+                fontSize: '14px'
+              }}
+            >
+              ❌ Выключить
+            </button>
+          </div>
+          {localStorage.getItem('smokingTimerTestMode') === 'true' && (
+            <div style={{ 
+              marginTop: '15px', 
+              padding: '12px', 
+              background: 'rgba(16, 185, 129, 0.1)',
+              border: '2px solid rgba(16, 185, 129, 0.3)',
+              borderRadius: '8px',
+              color: '#065f46',
+              fontWeight: '600',
+              fontSize: '14px'
+            }}>
+              ⚡ АКТИВЕН: Таймер = 30 секунд (для тестирования)
+            </div>
+          )}
+        </div>
+
         {/* Кнопка добавления новой зоны */}
         <div className="admin-toolbar">
           <button 
@@ -658,6 +752,284 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
         )}
           </>
         )}
+
+      {/* ========== ВКЛАДКА: СОТРУДНИКИ ========== */}
+      {activeView === 'staff' && (
+        <div className="staff-container">
+          <div className="admin-form-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3>👥 Список сотрудников</h3>
+              <button 
+                onClick={() => {
+                  setIsAddingStaff(true);
+                  setStaffForm({ name: '', telegramId: '' });
+                }}
+                style={{
+                  background: 'linear-gradient(135deg, #10b981, #34d399)',
+                  color: 'white',
+                  border: 'none',
+                  padding: '10px 20px',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  fontSize: '14px'
+                }}
+              >
+                ➕ Добавить сотрудника
+              </button>
+            </div>
+
+            {/* Форма добавления сотрудника */}
+            {isAddingStaff && (
+              <div style={{ 
+                background: 'rgba(16, 185, 129, 0.1)', 
+                padding: '20px', 
+                borderRadius: '12px',
+                marginBottom: '20px',
+                border: '2px solid rgba(16, 185, 129, 0.3)'
+              }}>
+                <h4 style={{ marginTop: 0 }}>Добавить нового сотрудника</h4>
+                <form onSubmit={handleAddStaff}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>
+                        Имя и Фамилия (как в отчете) *
+                      </label>
+                      <input
+                        type="text"
+                        value={staffForm.name}
+                        onChange={(e) => setStaffForm(prev => ({ ...prev, name: e.target.value }))}
+                        placeholder="Например: Арсений Орехов"
+                        required
+                        style={{
+                          width: '100%',
+                          padding: '10px',
+                          borderRadius: '8px',
+                          border: '1px solid #ccc',
+                          fontSize: '14px'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>
+                        Telegram ID
+                      </label>
+                      <input
+                        type="text"
+                        value={staffForm.telegramId}
+                        onChange={(e) => setStaffForm(prev => ({ ...prev, telegramId: e.target.value }))}
+                        placeholder="Например: 123456789"
+                        style={{
+                          width: '100%',
+                          padding: '10px',
+                          borderRadius: '8px',
+                          border: '1px solid #ccc',
+                          fontSize: '14px'
+                        }}
+                      />
+                      <small style={{ color: '#666', display: 'block', marginTop: '5px' }}>
+                        Для получения ID: @userinfobot в Telegram
+                      </small>
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <button 
+                        type="submit"
+                        style={{
+                          background: 'linear-gradient(135deg, #10b981, #34d399)',
+                          color: 'white',
+                          border: 'none',
+                          padding: '10px 20px',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          fontWeight: '600'
+                        }}
+                      >
+                        ✅ Сохранить
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setIsAddingStaff(false);
+                          setStaffForm({ name: '', telegramId: '' });
+                        }}
+                        style={{
+                          background: '#6b7280',
+                          color: 'white',
+                          border: 'none',
+                          padding: '10px 20px',
+                          borderRadius: '8px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        ❌ Отмена
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* Список сотрудников */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {staff.length === 0 ? (
+                <div style={{ 
+                  padding: '40px', 
+                  textAlign: 'center', 
+                  background: 'rgba(107, 114, 128, 0.1)',
+                  borderRadius: '12px',
+                  color: '#666'
+                }}>
+                  <p style={{ fontSize: '18px', marginBottom: '10px' }}>📋 Список сотрудников пуст</p>
+                  <p style={{ fontSize: '14px' }}>Добавьте первого сотрудника, нажав кнопку выше</p>
+                </div>
+              ) : (
+                staff.map((employee) => (
+                  <div 
+                    key={employee.id}
+                    style={{
+                      background: 'white',
+                      padding: '15px',
+                      borderRadius: '10px',
+                      border: '1px solid #e5e7eb',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                    }}
+                  >
+                    {editingStaff?.id === employee.id ? (
+                      // Режим редактирования
+                      <form onSubmit={handleSaveStaff}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          <input
+                            type="text"
+                            value={staffForm.name}
+                            onChange={(e) => setStaffForm(prev => ({ ...prev, name: e.target.value }))}
+                            placeholder="Имя и Фамилия"
+                            required
+                            style={{
+                              padding: '8px',
+                              borderRadius: '6px',
+                              border: '1px solid #ccc',
+                              fontSize: '14px'
+                            }}
+                          />
+                          <input
+                            type="text"
+                            value={staffForm.telegramId}
+                            onChange={(e) => setStaffForm(prev => ({ ...prev, telegramId: e.target.value }))}
+                            placeholder="Telegram ID"
+                            style={{
+                              padding: '8px',
+                              borderRadius: '6px',
+                              border: '1px solid #ccc',
+                              fontSize: '14px'
+                            }}
+                          />
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button 
+                              type="submit"
+                              style={{
+                                background: '#10b981',
+                                color: 'white',
+                                border: 'none',
+                                padding: '8px 16px',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                fontSize: '13px'
+                              }}
+                            >
+                              ✅ Сохранить
+                            </button>
+                            <button 
+                              type="button"
+                              onClick={handleCancelStaffEdit}
+                              style={{
+                                background: '#6b7280',
+                                color: 'white',
+                                border: 'none',
+                                padding: '8px 16px',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                fontSize: '13px'
+                              }}
+                            >
+                              ❌ Отмена
+                            </button>
+                          </div>
+                        </div>
+                      </form>
+                    ) : (
+                      // Режим просмотра
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <h4 style={{ margin: '0 0 8px 0', fontSize: '16px', color: '#1f2937' }}>
+                            {employee.name}
+                          </h4>
+                          <p style={{ margin: 0, fontSize: '14px', color: '#6b7280' }}>
+                            {employee.telegramId ? (
+                              <>📱 Telegram ID: <strong>{employee.telegramId}</strong></>
+                            ) : (
+                              <span style={{ color: '#ef4444' }}>⚠️ Telegram ID не указан</span>
+                            )}
+                          </p>
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button 
+                            onClick={() => handleEditStaff(employee)}
+                            style={{
+                              background: '#3b82f6',
+                              color: 'white',
+                              border: 'none',
+                              padding: '8px 16px',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              fontSize: '13px',
+                              fontWeight: '600'
+                            }}
+                          >
+                            ✏️ Редактировать
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteStaff(employee.id)}
+                            style={{
+                              background: '#ef4444',
+                              color: 'white',
+                              border: 'none',
+                              padding: '8px 16px',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              fontSize: '13px',
+                              fontWeight: '600'
+                            }}
+                          >
+                            🗑️ Удалить
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Подсказка */}
+            <div style={{ 
+              marginTop: '20px', 
+              padding: '15px', 
+              background: 'rgba(59, 130, 246, 0.1)',
+              borderRadius: '10px',
+              border: '1px solid rgba(59, 130, 246, 0.3)'
+            }}>
+              <p style={{ margin: '0 0 10px 0', fontWeight: '600', color: '#1e40af' }}>
+                💡 Как это работает:
+              </p>
+              <ul style={{ margin: 0, paddingLeft: '20px', color: '#374151', fontSize: '14px' }}>
+                <li>Имя должно ТОЧНО совпадать с именем в Google Sheets (Отчет)</li>
+                <li>Telegram ID можно получить у бота @userinfobot</li>
+                <li>Уведомления будут отправляться только сотрудникам на смене</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
       </div>
     </div>
   );

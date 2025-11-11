@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { API_URL } from './config';
 
 const SOURCES = ['Лично', 'Звонок', 'Онлайн'] as const;
@@ -26,23 +26,19 @@ interface Booking {
   hasVR?: boolean;
   hasShisha?: boolean;
   isHappyHours?: boolean;
-}
-
-interface AmoCRMDeal {
-  amocrmId: number;
-  name: string;
-  time: string;
-  guests: number;
-  phone: string;
-  source: string;
-  branch: string;
-  zoneName: string;
-  comment: string;
-  isPlaced: boolean;
+  smokingTimerEnd?: string; // ISO дата окончания таймера курения
 }
 
 interface BoardProps {
   onOpenAdmin: () => void;
+}
+
+interface CurrentShift {
+  date: string;
+  admin: string;
+  gamemaster: string;
+  isActual: boolean;
+  lastUpdate: string;
 }
 
 const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
@@ -71,6 +67,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     hasVR: false,
     hasShisha: false,
     isHappyHours: false,
+    smokingTimer: false, // галочка "МНЕ ТОЛЬКО ПОКУРИТЬ"
   });
   // Состояние для контекстного меню
   const [contextMenu, setContextMenu] = useState<{
@@ -147,6 +144,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       hasVR: false,
       hasShisha: false,
       isHappyHours: false,
+      smokingTimer: false,
     });
   };
 
@@ -205,6 +203,20 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     e.preventDefault();
     if (!quickBooking || !quickForm.name.trim() || !quickForm.time.trim()) return;
 
+    // Если галочка "МНЕ ТОЛЬКО ПОКУРИТЬ" активна, устанавливаем таймер
+    let smokingTimerEnd: string | undefined = undefined;
+    if (quickForm.smokingTimer) {
+      // Проверяем тест-режим таймера
+      const isTestMode = localStorage.getItem('smokingTimerTestMode') === 'true';
+      const timerDuration = isTestMode ? 30 * 1000 : 90 * 60 * 1000; // 30 секунд или 90 минут
+      const timerEnd = new Date(getNow().getTime() + timerDuration);
+      
+      if (isTestMode) {
+        console.log('🧪 Тест-режим таймера: 30 секунд');
+      }
+      smokingTimerEnd = timerEnd.toISOString();
+    }
+
     const newBooking: Omit<Booking, 'id'> = {
       name: quickForm.name.trim(),
       time: quickForm.time.trim(),
@@ -218,6 +230,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       hasVR: !!quickForm.hasVR,
       hasShisha: !!quickForm.hasShisha,
       isHappyHours: !!quickForm.isHappyHours,
+      smokingTimerEnd,
     };
 
     try {
@@ -246,6 +259,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
         hasVR: false,
         hasShisha: false,
         isHappyHours: false,
+        smokingTimer: false,
       });
     } catch (error) {
       console.error('Error creating quick booking:', error);
@@ -329,12 +343,24 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     // Получаем сохраненный филиал из localStorage или используем 'МСК' по умолчанию
     return (localStorage.getItem('currentBranch') as 'МСК' | 'Полевая') || 'МСК';
   });
+  const [currentShift, setCurrentShift] = useState<CurrentShift | null>(null);
   
-  // Состояние для AmoCRM интеграции
-  const [amocrmDeals, setAmocrmDeals] = useState<AmoCRMDeal[]>([]);
-  const [showAmocrmPanel, setShowAmocrmPanel] = useState(false);
-  const [isLoadingDeals, setIsLoadingDeals] = useState(false);
-  const [draggingDeal, setDraggingDeal] = useState<AmoCRMDeal | null>(null);
+  // КРИТИЧНО: useRef для notifiedTimers чтобы избежать перезапуска при loadData
+  const notifiedTimersRef = useRef<Set<string>>(
+    (() => {
+      try {
+        const stored = localStorage.getItem('smoking_notified_timers');
+        return stored ? new Set(JSON.parse(stored)) : new Set();
+      } catch {
+        return new Set();
+      }
+    })()
+  );
+  
+  // Функция для сохранения в localStorage
+  const saveNotifiedTimers = (timers: Set<string>) => {
+    localStorage.setItem('smoking_notified_timers', JSON.stringify(Array.from(timers)));
+  };
   const [form, setForm] = useState<{
     name: string;
     time: string;
@@ -393,6 +419,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     hasVR: boolean;
     hasShisha: boolean;
     isHappyHours: boolean;
+    smokingTimer: boolean;
   }>({
     name: '',
     time: '',
@@ -402,6 +429,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     hasVR: false,
     hasShisha: false,
     isHappyHours: false,
+    smokingTimer: false,
   });
 
   // Полностью отключаем любое вмешательство в работу браузера
@@ -466,6 +494,56 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     }
   };
 
+  // Функция загрузки текущей смены
+  const loadCurrentShift = async () => {
+    try {
+      // Проверяем тестовое время из localStorage
+      const testTimeOverride = localStorage.getItem('appTimeOverride');
+      
+      // Добавляем timestamp для предотвращения кеширования
+      const timestamp = new Date().getTime();
+      let url = `${API_URL}/api/current-shift/${currentBranch}?t=${timestamp}`;
+      
+      // Если есть тестовое время - передаём его backend
+      if (testTimeOverride) {
+        url += `&testDate=${encodeURIComponent(testTimeOverride)}`;
+        console.log(`🧪 Режим тестирования: дата ${new Date(testTimeOverride).toLocaleDateString('ru-RU')}`);
+      }
+      
+      console.log(`🔄 Запрос смены для "${currentBranch}"...`);
+      console.log(`   URL: ${url}`);
+      
+      const response = await fetch(url, {
+        cache: 'no-cache',
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
+      });
+      
+      console.log(`📡 Ответ сервера: ${response.status} ${response.statusText}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        setCurrentShift(data);
+        console.log(`✅ Смена загружена для "${currentBranch}":`, {
+          admin: data.admin,
+          gamemaster: data.gamemaster,
+          date: data.date,
+          isActual: data.isActual,
+          testMode: data.testMode || false
+        });
+      } else {
+        const errorData = await response.text();
+        console.warn(`⚠️ Нет данных о смене для "${currentBranch}"`, errorData);
+        setCurrentShift(null);
+      }
+    } catch (error) {
+      console.error('❌ Ошибка загрузки смены:', error);
+      setCurrentShift(null);
+    }
+  };
+
   // Функция загрузки данных
   const loadData = async () => {
     try {
@@ -500,53 +578,30 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     }
   };
 
-  // Загрузка сделок из AmoCRM
-  const loadAmoCRMDeals = async () => {
-    setIsLoadingDeals(true);
-    try {
-      console.log('📥 Загрузка броней из AmoCRM...');
-      const response = await fetch(`${API_URL}/api/amocrm/deals-today`);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const deals = await response.json();
-      
-      // Проверяем что deals это массив
-      if (!Array.isArray(deals)) {
-        console.error('AmoCRM returned non-array:', deals);
-        setAmocrmDeals([]);
-        alert(`Ошибка AmoCRM: ${deals.error || 'Неверный формат ответа'}`);
-      } else {
-        setAmocrmDeals(deals);
-        setShowAmocrmPanel(true);
-        console.log(`✅ Загружено ${deals.length} броней из AmoCRM`);
-      }
-    } catch (error) {
-      console.error('❌ Ошибка загрузки из AmoCRM:', error);
-      setAmocrmDeals([]);
-      alert('Не удалось загрузить брони из AmoCRM. Проверьте токен AmoCRM в настройках backend.');
-    } finally {
-      setIsLoadingDeals(false);
-    }
-  };
-
   // Загрузка зон и бронирований с backend при первом запуске
   useEffect(() => {
     loadData();
+    loadCurrentShift();
   }, []);
 
-  // Автообновление каждые 5 секунд
+  // Обновление смены при смене филиала
+  useEffect(() => {
+    loadCurrentShift();
+  }, [currentBranch]);
+
+  // Автообновление данных и смены
+  // ⚙️ ИНТЕРВАЛ: 5 секунд - оптимальный баланс между актуальностью и нагрузкой
+  // Backend обновляется из Google Sheets каждые 60 секунд, frontend просто читает кеш
   useEffect(() => {
     if (!isAutoRefreshEnabled) return;
 
     const interval = setInterval(() => {
       loadData();
+      loadCurrentShift();
     }, 5000); // 5 секунд
 
     return () => clearInterval(interval);
-  }, [isAutoRefreshEnabled]);
+  }, [isAutoRefreshEnabled, currentBranch]);
 
   // useEffect для обновления tableId при смене филиала или зон
   useEffect(() => {
@@ -662,6 +717,8 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
 
   const handleEditBooking = (booking: Booking) => {
     setEditingBooking(booking);
+    // Проверяем, есть ли активный таймер курения
+    const hasActiveTimer = booking.smokingTimerEnd && new Date(booking.smokingTimerEnd) > getNow();
     setEditForm({
       name: booking.name,
       time: booking.time,
@@ -671,6 +728,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       hasVR: booking.hasVR || false,
       hasShisha: booking.hasShisha || false,
       isHappyHours: booking.isHappyHours || false,
+      smokingTimer: !!hasActiveTimer,
     });
   };
 
@@ -678,6 +736,58 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   const handleSaveBookingEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingBooking || !editForm.name.trim() || !editForm.time.trim() || !editForm.guests) return;
+    
+    // Если галочка "МНЕ ТОЛЬКО ПОКУРИТЬ" активна, сохраняем существующий таймер или создаем новый
+    // Если галочка снята, очищаем таймер (null)
+    let smokingTimerEnd: string | null = null;
+    let shouldResetNotificationCounter = false; // Флаг для сброса счетчика уведомлений
+    
+    if (editForm.smokingTimer) {
+      // Если таймер уже был установлен, проверяем не истек ли он
+      if (editingBooking.smokingTimerEnd) {
+        const existingTimerEnd = new Date(editingBooking.smokingTimerEnd);
+        const now = getNow();
+        
+        // Если таймер НЕ истек, сохраняем его
+        if (existingTimerEnd > now) {
+          smokingTimerEnd = editingBooking.smokingTimerEnd;
+        } else {
+          // Если таймер ИСТЕК, создаем НОВЫЙ таймер
+          const isTestMode = localStorage.getItem('smokingTimerTestMode') === 'true';
+          const timerDuration = isTestMode ? 30 * 1000 : 90 * 60 * 1000;
+          const timerEnd = new Date(now.getTime() + timerDuration);
+          smokingTimerEnd = timerEnd.toISOString();
+          shouldResetNotificationCounter = true; // Нужно сбросить счетчик!
+          
+          console.log('🔄 Таймер истек, создаю НОВЫЙ таймер');
+          if (isTestMode) {
+            console.log('🧪 Тест-режим таймера: 30 секунд');
+          }
+        }
+      } else {
+        // Если таймера не было, создаем новый
+        const isTestMode = localStorage.getItem('smokingTimerTestMode') === 'true';
+        const timerDuration = isTestMode ? 30 * 1000 : 90 * 60 * 1000;
+        const timerEnd = new Date(getNow().getTime() + timerDuration);
+        smokingTimerEnd = timerEnd.toISOString();
+        
+        if (isTestMode) {
+          console.log('🧪 Тест-режим таймера: 30 секунд');
+        }
+      }
+    }
+    
+    // КРИТИЧНО: Сбрасываем счетчик уведомлений если создали новый таймер
+    if (shouldResetNotificationCounter) {
+      try {
+        notifiedTimersRef.current.delete(editingBooking.id); // Удаляем ID из Ref
+        saveNotifiedTimers(notifiedTimersRef.current); // Сохраняем в localStorage
+        console.log(`✅ Счетчик уведомлений сброшен для бронирования ${editingBooking.id}`);
+      } catch (error) {
+        console.error('Ошибка сброса счетчика:', error);
+      }
+    }
+    
     const res = await fetch(`${API_URL}/api/bookings/${editingBooking.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -691,17 +801,18 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
         hasVR: editForm.hasVR,
         hasShisha: editForm.hasShisha,
         isHappyHours: editForm.isHappyHours,
+        smokingTimerEnd,
       }),
     });
     const updated = await res.json();
     setBookings(prev => prev.map(b => b.id === editingBooking.id ? { ...updated, isActive: b.isActive } : b));
     setEditingBooking(null);
-    setEditForm({ name: '', time: '', guests: 1, phone: '', comment: '', hasVR: false, hasShisha: false, isHappyHours: false });
+    setEditForm({ name: '', time: '', guests: 1, phone: '', comment: '', hasVR: false, hasShisha: false, isHappyHours: false, smokingTimer: false });
   };
 
   const handleCancelBookingEdit = () => {
     setEditingBooking(null);
-    setEditForm({ name: '', time: '', guests: 1, phone: '', comment: '', hasVR: false, hasShisha: false, isHappyHours: false });
+    setEditForm({ name: '', time: '', guests: 1, phone: '', comment: '', hasVR: false, hasShisha: false, isHappyHours: false, smokingTimer: false });
   };
 
   const handleToggleActive = async (booking: Booking) => {
@@ -722,47 +833,6 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
 
   const handleDragStart = (booking: Booking) => setDraggedBooking(booking);
   const handleDrop = async (tableId: number) => {
-    // Обработка перетаскивания из AmoCRM
-    if (draggingDeal) {
-      const newBooking = {
-        name: draggingDeal.name,
-        time: draggingDeal.time,
-        guests: draggingDeal.guests,
-        phone: draggingDeal.phone,
-        source: 'AmoCRM' as SourceType,
-        tableId: tableId,
-        branch: currentBranch,
-        isActive: true,
-        comment: draggingDeal.comment,
-        hasVR: false,
-        hasShisha: false,
-        isHappyHours: false,
-      };
-
-      try {
-        const response = await fetch(`${API_URL}/api/bookings`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newBooking),
-        });
-
-        if (response.ok) {
-          const created = await response.json();
-          setBookings(prev => [...prev, created]);
-          // Удаляем сделку из списка AmoCRM
-          setAmocrmDeals(prev => prev.filter(d => d.amocrmId !== draggingDeal.amocrmId));
-          console.log('✅ Бронь из AmoCRM добавлена на доску');
-        }
-      } catch (error) {
-        console.error('Error creating booking from AmoCRM:', error);
-        alert('Ошибка при добавлении брони');
-      }
-
-      setDraggingDeal(null);
-      return;
-    }
-
-    // Обработка перетаскивания существующих броней
     if (draggedBooking) {
       // Обновляем локальное состояние
       setBookings((prev) =>
@@ -806,7 +876,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     return hours > 18 || (hours === 18 && minutes >= 50);
   };
 
-  const shouldHighlightHH = (b: Booking) => !!b.isHappyHours && isHHTimeNow();
+  const shouldHighlightHH = (b: Booking) => !!b.isHappyHours;
 
   const isHHWarningWindow = () => {
     const now = getNow();
@@ -816,6 +886,135 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   };
 
   const shouldBlinkHH = (b: Booking) => !!b.isHappyHours && isHHWarningWindow();
+
+  // ========== ЛОГИКА ТАЙМЕРА КУРЕНИЯ ==========
+  
+  // Функция для получения оставшегося времени таймера курения
+  const getSmokingTimeRemaining = (booking: Booking): { minutes: number; seconds: number; isExpired: boolean; expiredMoreThan2Min: boolean } | null => {
+    if (!booking.smokingTimerEnd) return null;
+    
+    const now = getNow();
+    const endTime = new Date(booking.smokingTimerEnd);
+    const diffMs = endTime.getTime() - now.getTime();
+    
+    if (diffMs <= 0) {
+      // Проверяем, прошло ли более 2 минут после истечения
+      const expiredMs = Math.abs(diffMs);
+      const expiredMoreThan2Min = expiredMs > (2 * 60 * 1000); // 2 минуты
+      
+      return { minutes: 0, seconds: 0, isExpired: true, expiredMoreThan2Min };
+    }
+    
+    const totalSeconds = Math.floor(diffMs / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    
+    return { minutes, seconds, isExpired: false, expiredMoreThan2Min: false };
+  };
+  
+  // Проверка, истек ли таймер курения (для мигания) - но не более 2 минут назад
+  const isSmokingTimerExpired = (b: Booking): boolean => {
+    const remaining = getSmokingTimeRemaining(b);
+    // Мигание только если истек, но прошло менее 2 минут
+    return remaining !== null && remaining.isExpired && !remaining.expiredMoreThan2Min;
+  };
+  
+  // Форматирование времени таймера для отображения
+  const formatSmokingTimer = (booking: Booking): string | null => {
+    const remaining = getSmokingTimeRemaining(booking);
+    if (!remaining) return null;
+    
+    // Если прошло более 2 минут после истечения - не показываем ничего
+    if (remaining.expiredMoreThan2Min) {
+      return null;
+    }
+    
+    if (remaining.isExpired) {
+      return '⏰ ПРЕДЛОЖИ Кальян или тариф';
+    }
+    
+    const mins = String(remaining.minutes).padStart(2, '0');
+    const secs = String(remaining.seconds).padStart(2, '0');
+    return `🚬 ${mins}:${secs}`;
+  };
+
+  // Уведомление о завершении таймера курения
+  useEffect(() => {
+    const checkAndNotify = async () => {
+      // Используем notifiedTimersRef.current - он НЕ перезапускается при loadData!
+      const notifiedTimers = notifiedTimersRef.current;
+      
+      // Фильтруем бронирования с истекшим таймером, для которых ЕЩЁ НЕ отправлено уведомление
+      const currentBookingsWithExpiredTimer = bookings.filter(b => 
+        b.branch === currentBranch && 
+        b.smokingTimerEnd && 
+        isSmokingTimerExpired(b) &&
+        !notifiedTimers.has(b.id) // Проверяем: уже отправляли?
+      );
+      
+      if (currentBookingsWithExpiredTimer.length === 0) {
+        return; // Нет новых истекших таймеров
+      }
+      
+      // Обрабатываем каждое бронирование
+      for (const booking of currentBookingsWithExpiredTimer) {
+        // КРИТИЧНО: СРАЗУ добавляем в Set ПЕРЕД отправкой!
+        notifiedTimers.add(booking.id);
+        saveNotifiedTimers(notifiedTimers);
+        
+        // Ищем таблицу (сравниваем как строки!)
+        const table = tables.find(t => String(t.id) === String(booking.tableId));
+        
+        const zoneName = table?.name || `Зона ${booking.tableId}`;
+        
+        console.log(`🚬 [${new Date().toLocaleTimeString()}] Таймер истёк для ${zoneName} (${booking.name}), отправляю уведомление...`);
+        
+        // Отправляем уведомление сотрудникам на смене
+        try {
+          const testTimeOverride = localStorage.getItem('appTimeOverride');
+          
+          const payload: any = {
+            branch: booking.branch,
+            zoneName: zoneName,
+            guestName: booking.name
+          };
+          
+          if (testTimeOverride) {
+            payload.testDate = testTimeOverride;
+          }
+          
+          const response = await fetch(`${API_URL}/api/telegram/notify-smoking-timer`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            console.log(`   ✅ Уведомление отправлено: ${result.message}`);
+          } else {
+            console.error('   ❌ Ошибка отправки уведомления');
+          }
+        } catch (error) {
+          console.error('   ❌ Ошибка отправки:', error);
+        }
+      }
+      
+      // Очищаем старые уведомления (для броней, которые уже удалены)
+      const currentBookingIds = new Set(bookings.map(b => b.id));
+      const cleanedTimers = new Set(Array.from(notifiedTimers).filter(id => currentBookingIds.has(id)));
+      if (cleanedTimers.size !== notifiedTimers.size) {
+        notifiedTimersRef.current = cleanedTimers;
+        saveNotifiedTimers(cleanedTimers);
+        console.log(`🧹 Очищены старые уведомления: ${notifiedTimers.size} → ${cleanedTimers.size}`);
+      }
+    };
+    
+    const interval = setInterval(checkAndNotify, 1000); // Проверяем каждую секунду
+    return () => clearInterval(interval);
+  }, [bookings, currentBranch, tables]);
+
+  // ========== КОНЕЦ ЛОГИКИ ТАЙМЕРА КУРЕНИЯ ==========
 
   // Ежедневное уведомление в 18:50, если есть хотя бы одна HH-бронирование в текущем филиале
   useEffect(() => {
@@ -967,7 +1166,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
               />
             </div>
 
-            <div style={{display: 'flex', gap: '12px', alignItems: 'center'}}>
+            <div style={{display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap'}}>
               <label style={{display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px'}}>
                 <input
                   name="hasVR"
@@ -994,6 +1193,15 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                   onChange={handleEditFormChange}
                 />
                 Счастливые часы
+              </label>
+              <label style={{display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: '700'}}>
+                <input
+                  name="smokingTimer"
+                  type="checkbox"
+                  checked={editForm.smokingTimer}
+                  onChange={handleEditFormChange}
+                />
+                МНЕ ТОЛЬКО ПОКУРИТЬ
               </label>
             </div>
 
@@ -1121,22 +1329,9 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       <div className="header">
         <div>
           <h1>Канбан-доска броней</h1>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button onClick={onOpenAdmin} className="admin-btn">
-              ⚙️ Админ панель
-            </button>
-            <button 
-              onClick={loadAmoCRMDeals} 
-              className="admin-btn"
-              disabled={isLoadingDeals}
-              style={{
-                background: isLoadingDeals ? '#9ca3af' : 'linear-gradient(135deg, #10b981, #34d399)',
-                cursor: isLoadingDeals ? 'not-allowed' : 'pointer'
-              }}
-            >
-              {isLoadingDeals ? '⏳ Загрузка...' : '📥 Брони из AmoCRM'}
-            </button>
-          </div>
+          <button onClick={onOpenAdmin} className="admin-btn">
+            ⚙️ Админ панель
+          </button>
         </div>
         <div className="header-btns">
           <button 
@@ -1158,6 +1353,25 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       <div className="info-bar">
         <div>
           <h2>{currentBranch}</h2>
+          
+          {/* Информация о смене */}
+          {currentShift && (
+            <div className="shift-info">
+              <span className="shift-label">👥 На смене:</span>
+              <span className="shift-staff">
+                👨‍💼 {currentShift.admin} | 🎮 {currentShift.gamemaster}
+              </span>
+              {!currentShift.isActual && (
+                <span 
+                  className="shift-warning" 
+                  title={`Смена на сегодня не назначена. Показаны данные за ${currentShift.date}`}
+                >
+                  ⚠️ за {currentShift.date}
+                </span>
+              )}
+            </div>
+          )}
+          
           <div className="booking-stats">
             <span className="stat-item active">
               <span className="stat-dot green"></span>
@@ -1176,6 +1390,11 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
             {localStorage.getItem('appTimeOverride') && (
               <span className="stat-item" title={`Тестовое время: ${new Date(localStorage.getItem('appTimeOverride') || '').toLocaleString()}`} style={{ background: '#fde68a', color: '#92400e', padding: '2px 6px', borderRadius: '6px' }}>
                 Тест-время активно
+              </span>
+            )}
+            {localStorage.getItem('smokingTimerTestMode') === 'true' && (
+              <span className="stat-item" title="Таймер курения = 30 секунд (тест-режим)" style={{ background: '#d1fae5', color: '#065f46', padding: '2px 6px', borderRadius: '6px', fontWeight: '600' }}>
+                🚬 Тест-таймер: 30 сек
               </span>
             )}
           </div>
@@ -1213,9 +1432,26 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
               cursor: 'pointer',
               transition: 'all 0.3s ease'
             }}
-            title="Обновить сейчас"
+            title="Обновить данные"
           >
-            🔄 Сейчас
+            🔄 Данные
+          </button>
+          <button 
+            onClick={loadCurrentShift}
+            style={{
+              background: 'linear-gradient(135deg, #8b5cf6, #a78bfa)',
+              color: 'white',
+              border: 'none',
+              padding: '4px 8px',
+              borderRadius: '4px',
+              fontSize: '11px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease'
+            }}
+            title="Обновить смену из Google Sheets"
+          >
+            👥 Смена
           </button>
           <button 
             onClick={handleClearAllBookings}
@@ -1269,14 +1505,24 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                   {currentBookings.filter(b => String(b.tableId) === String(table.id)).length === 0 && (
                     <div className="no-bookings">Нет броней</div>
                   )}
-                  {currentBookings.filter(b => String(b.tableId) === String(table.id)).map((b) => (
+                  {currentBookings.filter(b => String(b.tableId) === String(table.id)).map((b) => {
+                    const smokingTimerText = formatSmokingTimer(b);
+                    const isTimerExpired = isSmokingTimerExpired(b);
+                    
+                    return (
                 <div
                   key={b.id}
                   draggable
                   onDragStart={() => handleDragStart(b)}
                   onClick={(e) => e.stopPropagation()}
-                  className={`booking-card ${b.isActive ? 'green' : 'red'} ${shouldHighlightHH(b) ? 'hh-active' : ''} ${shouldBlinkHH(b) ? 'hh-blink' : ''}`}
+                  className={`booking-card ${b.isActive ? 'green' : 'red'} ${shouldHighlightHH(b) ? 'hh-active' : ''} ${shouldBlinkHH(b) ? 'hh-blink' : ''} ${isTimerExpired ? 'smoking-timer-expired' : ''}`}
                     >
+                      {/* Таймер курения в левом верхнем углу */}
+                      {smokingTimerText && (
+                        <div className={`smoking-timer ${isTimerExpired ? 'expired' : ''}`}>
+                          {smokingTimerText}
+                        </div>
+                      )}
                       <div className="booking-time">{b.time}</div>
                       <div className="booking-name">{b.name}</div>
                       <div className="booking-guests">{b.guests} чел.</div>
@@ -1299,7 +1545,8 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                         </button>
                       </div>
                   </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 <div className="zone-card-footer">{table.capacity} чел.</div>
                 </div>
@@ -1400,7 +1647,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
               />
             </div>
 
-            <div className="checkbox-row" style={{display: 'flex', gap: '16px', alignItems: 'center'}}>
+            <div className="checkbox-row" style={{display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap'}}>
               <label style={{display: 'flex', alignItems: 'center', gap: '6px', fontSize: '16px'}}>
                 <input
                   name="hasVR"
@@ -1428,6 +1675,15 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                 />
                 Счастливые часы
               </label>
+              <label style={{display: 'flex', alignItems: 'center', gap: '6px', fontSize: '16px', fontWeight: '700'}}>
+                <input
+                  name="smokingTimer"
+                  type="checkbox"
+                  checked={quickForm.smokingTimer}
+                  onChange={handleQuickFormChange}
+                />
+                МНЕ ТОЛЬКО ПОКУРИТЬ
+              </label>
             </div>
 
             <div className="actions">
@@ -1443,60 +1699,6 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
               </button>
             </div>
           </form>
-        </div>
-      )}
-
-      {/* Боковая панель с бронями из AmoCRM */}
-      {showAmocrmPanel && (
-        <div className="amocrm-panel">
-          <div className="amocrm-panel-header">
-            <h3>📥 Брони из AmoCRM</h3>
-            <button 
-              onClick={() => setShowAmocrmPanel(false)}
-              className="close-btn"
-            >
-              ✕
-            </button>
-          </div>
-          
-          <div className="amocrm-panel-content">
-            {amocrmDeals.length === 0 ? (
-              <p style={{ textAlign: 'center', color: '#6b7280', padding: '20px' }}>
-                Нет новых броней
-              </p>
-            ) : (
-              amocrmDeals.map((deal) => (
-                <div
-                  key={deal.amocrmId}
-                  className="amocrm-deal-card"
-                  draggable
-                  onDragStart={() => setDraggingDeal(deal)}
-                  onDragEnd={() => setDraggingDeal(null)}
-                >
-                  <div className="deal-header">
-                    <strong>{deal.name}</strong>
-                    <span className="deal-time">🕐 {deal.time}</span>
-                  </div>
-                  <div className="deal-info">
-                    <span>👥 {deal.guests} чел.</span>
-                    <span>📍 {deal.branch}</span>
-                  </div>
-                  {deal.phone && (
-                    <div className="deal-phone">📞 {deal.phone}</div>
-                  )}
-                  {deal.zoneName && (
-                    <div className="deal-zone">🎯 {deal.zoneName}</div>
-                  )}
-                  {deal.comment && (
-                    <div className="deal-comment">💬 {deal.comment}</div>
-                  )}
-                  <div className="deal-drag-hint">
-                    👆 Перетащите на зону
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
         </div>
       )}
     </div>

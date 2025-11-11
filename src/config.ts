@@ -1,8 +1,8 @@
 // Конфигурация API URL
 
-// 💻 Локальный сервер (для тестирования AmoCRM):
-export const API_URL = 'http://localhost:3001';
+// 💻 Локальный сервер (для разработки):
+// export const API_URL = 'http://localhost:3003';
 
-// 🚀 PRODUCTION (загрузите обновлённый server.js на production для работы Telegram):
-// export const API_URL = 'https://smolkalwdz-kanban-backend-3d00.twc1.net';
+// 🚀 PRODUCTION (основной сервер):
+export const API_URL = 'https://smolkalwdz-kanban-backend-3d00.twc1.net';
 
