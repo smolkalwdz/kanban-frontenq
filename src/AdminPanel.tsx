@@ -25,6 +25,16 @@ interface Staff {
   telegramId: string;
 }
 
+interface Task {
+  id: string;
+  title: string;
+  message: string;
+  scheduledTime: string; // ISO строка времени
+  branch: 'МСК' | 'Полевая';
+  isSent: boolean;
+  createdAt: string;
+}
+
 interface AdminPanelProps {
   onBack: () => void;
 }
@@ -32,6 +42,16 @@ interface AdminPanelProps {
 const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   // Отладка API URL
   console.log('🔍 AdminPanel API_URL:', API_URL);
+  
+  // Переопределение времени приложения (для тестов): читаем из localStorage
+  const getNow = () => {
+    const override = localStorage.getItem('appTimeOverride');
+    if (override) {
+      const parsed = new Date(override);
+      if (!isNaN(parsed.getTime())) return parsed;
+    }
+    return new Date();
+  };
   
   const [tables, setTables] = useState<Table[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -46,7 +66,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const [overrideInput, setOverrideInput] = useState<string>('');
   
   // Состояние для вкладок
-  const [activeView, setActiveView] = useState<'zones' | 'control' | 'staff'>('zones');
+  const [activeView, setActiveView] = useState<'zones' | 'control' | 'staff' | 'tasks'>('zones');
   const [sendingZoneId, setSendingZoneId] = useState<number | null>(null);
   
   // Состояния для сотрудников
@@ -54,6 +74,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
   const [staffForm, setStaffForm] = useState({ name: '', telegramId: '' });
   const [isAddingStaff, setIsAddingStaff] = useState(false);
+  
+  // Состояния для задач
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [taskForm, setTaskForm] = useState({ 
+    title: '', 
+    message: '', 
+    scheduledTime: '',
+    branch: 'МСК' as 'МСК' | 'Полевая'
+  });
+  const [isAddingTask, setIsAddingTask] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
 
   // Загрузка бронирований
   const loadBookings = async () => {
@@ -94,11 +125,23 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     }
   };
 
+  // Загрузка задач
+  const loadTasks = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/tasks`);
+      const data = await response.json();
+      setTasks(data);
+    } catch (error) {
+      console.error('Error loading tasks:', error);
+    }
+  };
+
   // Загрузка данных при монтировании
   useEffect(() => {
     loadTables();
     loadBookings();
     loadStaff();
+    loadTasks();
   }, []);
 
   // Получаем зоны текущего филиала и сортируем по номеру
@@ -347,7 +390,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       {/* Заголовок */}
       <div className="header">
         <div>
-          <h1>⚙️ Админ панель - {activeView === 'zones' ? 'Управление зонами' : activeView === 'staff' ? 'Сотрудники' : 'Контроль порядка'}</h1>
+          <h1>⚙️ Админ панель - {activeView === 'zones' ? 'Управление зонами' : activeView === 'staff' ? 'Сотрудники' : activeView === 'tasks' ? 'Задачи' : 'Контроль порядка'}</h1>
           <button onClick={onBack} className="back-btn">
             ← Вернуться к доске
           </button>
@@ -370,6 +413,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
             className={activeView === 'staff' ? 'active' : ''}
           >
             👥 Сотрудники
+          </button>
+          <button 
+            onClick={() => setActiveView('tasks')}
+            className={activeView === 'tasks' ? 'active' : ''}
+          >
+            📋 Задачи
           </button>
         </div>
       </div>
@@ -1026,6 +1075,347 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                 <li>Telegram ID можно получить у бота @userinfobot</li>
                 <li>Уведомления будут отправляться только сотрудникам на смене</li>
               </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========== ВКЛАДКА: ЗАДАЧИ ========== */}
+      {activeView === 'tasks' && (
+        <div className="tasks-container">
+          <div className="admin-form-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3>📋 Управление задачами</h3>
+              <button 
+                onClick={() => {
+                  setIsAddingTask(true);
+                  setTaskForm({ title: '', message: '', scheduledTime: '', branch: 'МСК' });
+                }}
+                style={{
+                  background: 'linear-gradient(135deg, #10b981, #34d399)',
+                  color: 'white',
+                  border: 'none',
+                  padding: '10px 20px',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  fontSize: '14px'
+                }}
+              >
+                ➕ Добавить задачу
+              </button>
+            </div>
+
+            {/* Форма добавления/редактирования задачи */}
+            {(isAddingTask || editingTask) && (
+              <div style={{ 
+                background: 'rgba(16, 185, 129, 0.1)', 
+                padding: '20px', 
+                borderRadius: '12px',
+                marginBottom: '20px',
+                border: '2px solid rgba(16, 185, 129, 0.3)'
+              }}>
+                <h4 style={{ marginTop: 0 }}>{editingTask ? 'Редактировать задачу' : 'Добавить новую задачу'}</h4>
+                <form onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!taskForm.title.trim() || !taskForm.message.trim() || !taskForm.scheduledTime) {
+                    alert('Заполните все обязательные поля');
+                    return;
+                  }
+
+                  try {
+                    // Используем локальное время из канбан-доски
+                    const now = getNow();
+                    
+                    // Парсим время из формы (HH:MM)
+                    const [hours, minutes] = taskForm.scheduledTime.split(':');
+                    const scheduledDate = new Date(now);
+                    scheduledDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+                    
+                    // Если время уже прошло сегодня, ставим на завтра
+                    if (scheduledDate <= now) {
+                      scheduledDate.setDate(scheduledDate.getDate() + 1);
+                    }
+
+                    const taskData = {
+                      title: taskForm.title.trim(),
+                      message: taskForm.message.trim(),
+                      scheduledTime: scheduledDate.toISOString(),
+                      branch: taskForm.branch
+                    };
+
+                    if (editingTask) {
+                      const response = await fetch(`${API_URL}/api/tasks/${editingTask.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(taskData)
+                      });
+                      if (response.ok) {
+                        await loadTasks();
+                        setEditingTask(null);
+                        setTaskForm({ title: '', message: '', scheduledTime: '', branch: 'МСК' });
+                        alert('✅ Задача обновлена');
+                      }
+                    } else {
+                      const response = await fetch(`${API_URL}/api/tasks`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(taskData)
+                      });
+                      if (response.ok) {
+                        await loadTasks();
+                        setIsAddingTask(false);
+                        setTaskForm({ title: '', message: '', scheduledTime: '', branch: 'МСК' });
+                        alert('✅ Задача создана');
+                      }
+                    }
+                  } catch (error) {
+                    console.error('Error saving task:', error);
+                    alert('Ошибка при сохранении задачи');
+                  }
+                }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>
+                        Название задачи *
+                      </label>
+                      <input
+                        type="text"
+                        value={taskForm.title}
+                        onChange={(e) => setTaskForm(prev => ({ ...prev, title: e.target.value }))}
+                        required
+                        style={{
+                          width: '100%',
+                          padding: '10px',
+                          borderRadius: '8px',
+                          border: '1px solid #ccc',
+                          fontSize: '14px'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>
+                        Текст сообщения (будет отправлено в Telegram) *
+                      </label>
+                      <textarea
+                        value={taskForm.message}
+                        onChange={(e) => setTaskForm(prev => ({ ...prev, message: e.target.value }))}
+                        placeholder="Текст, который придет сотрудникам на смене"
+                        required
+                        rows={4}
+                        style={{
+                          width: '100%',
+                          padding: '10px',
+                          borderRadius: '8px',
+                          border: '1px solid #ccc',
+                          fontSize: '14px',
+                          fontFamily: 'inherit'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>
+                        Время отправки (локальное время) *
+                      </label>
+                      <input
+                        type="time"
+                        value={taskForm.scheduledTime}
+                        onChange={(e) => setTaskForm(prev => ({ ...prev, scheduledTime: e.target.value }))}
+                        required
+                        style={{
+                          width: '100%',
+                          padding: '10px',
+                          borderRadius: '8px',
+                          border: '1px solid #ccc',
+                          fontSize: '14px'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>
+                        Филиал *
+                      </label>
+                      <div className="branch-selector">
+                        <button 
+                          type="button"
+                          onClick={() => setTaskForm(prev => ({ ...prev, branch: 'МСК' }))}
+                          className={`branch-btn ${taskForm.branch === 'МСК' ? 'active' : ''}`}
+                        >
+                          🏢 МСК
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => setTaskForm(prev => ({ ...prev, branch: 'Полевая' }))}
+                          className={`branch-btn ${taskForm.branch === 'Полевая' ? 'active' : ''}`}
+                        >
+                          🏪 Полевая
+                        </button>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <button 
+                        type="submit"
+                        style={{
+                          background: 'linear-gradient(135deg, #10b981, #34d399)',
+                          color: 'white',
+                          border: 'none',
+                          padding: '10px 20px',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          fontWeight: '600'
+                        }}
+                      >
+                        ✅ Сохранить
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setIsAddingTask(false);
+                          setEditingTask(null);
+                          setTaskForm({ title: '', message: '', scheduledTime: '', branch: 'МСК' });
+                        }}
+                        style={{
+                          background: '#6b7280',
+                          color: 'white',
+                          border: 'none',
+                          padding: '10px 20px',
+                          borderRadius: '8px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        ❌ Отмена
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* Список задач */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {tasks.length === 0 ? (
+                <div style={{ 
+                  padding: '40px', 
+                  textAlign: 'center', 
+                  background: 'rgba(107, 114, 128, 0.1)',
+                  borderRadius: '12px',
+                  color: '#666'
+                }}>
+                  <p style={{ fontSize: '18px', marginBottom: '10px' }}>📋 Список задач пуст</p>
+                  <p style={{ fontSize: '14px' }}>Добавьте первую задачу, нажав кнопку выше</p>
+                </div>
+              ) : (
+                tasks
+                  .sort((a, b) => new Date(a.scheduledTime).getTime() - new Date(b.scheduledTime).getTime())
+                  .map((task) => {
+                    const scheduledDate = new Date(task.scheduledTime);
+                    const now = getNow();
+                    const isPast = scheduledDate <= now;
+                    
+                    return (
+                      <div 
+                        key={task.id}
+                        style={{
+                          background: task.isSent ? 'rgba(107, 114, 128, 0.2)' : 'white',
+                          padding: '15px',
+                          borderRadius: '10px',
+                          border: '1px solid #e5e7eb',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                          opacity: task.isSent ? 0.6 : 1
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div style={{ flex: 1 }}>
+                            <h4 style={{ margin: '0 0 8px 0', fontSize: '16px', color: '#1f2937' }}>
+                              {task.title}
+                              {task.isSent && <span style={{ marginLeft: '10px', fontSize: '12px', color: '#6b7280' }}>✅ Отправлено</span>}
+                            </h4>
+                            <p style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#374151', whiteSpace: 'pre-wrap' }}>
+                              {task.message}
+                            </p>
+                            <div style={{ display: 'flex', gap: '15px', fontSize: '12px', color: '#6b7280', flexWrap: 'wrap' }}>
+                              <span>🏢 {task.branch}</span>
+                              <span>⏰ {scheduledDate.toLocaleString('ru-RU', { 
+                                day: '2-digit', 
+                                month: '2-digit', 
+                                year: 'numeric',
+                                hour: '2-digit', 
+                                minute: '2-digit' 
+                              })}</span>
+                              {isPast && !task.isSent && (
+                                <span style={{ color: '#ef4444', fontWeight: '600' }}>⚠️ Просрочено</span>
+                              )}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            {!task.isSent && (
+                              <>
+                                <button 
+                                  onClick={() => {
+                                    setEditingTask(task);
+                                    const date = new Date(task.scheduledTime);
+                                    // Учитываем локальную временную зону
+                                    const hours = date.getHours();
+                                    const minutes = date.getMinutes();
+                                    const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+                                    setTaskForm({ 
+                                      title: task.title, 
+                                      message: task.message, 
+                                      scheduledTime: timeStr,
+                                      branch: task.branch 
+                                    });
+                                    setIsAddingTask(false);
+                                  }}
+                                  style={{
+                                    background: '#3b82f6',
+                                    color: 'white',
+                                    border: 'none',
+                                    padding: '8px 16px',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    fontSize: '13px',
+                                    fontWeight: '600'
+                                  }}
+                                >
+                                  ✏️ Редактировать
+                                </button>
+                                <button 
+                                  onClick={async () => {
+                                    if (!window.confirm('Вы уверены, что хотите удалить эту задачу?')) return;
+                                    try {
+                                      const response = await fetch(`${API_URL}/api/tasks/${task.id}`, {
+                                        method: 'DELETE'
+                                      });
+                                      if (response.ok) {
+                                        await loadTasks();
+                                        alert('🗑️ Задача удалена');
+                                      }
+                                    } catch (error) {
+                                      console.error('Error deleting task:', error);
+                                      alert('Ошибка при удалении задачи');
+                                    }
+                                  }}
+                                  style={{
+                                    background: '#ef4444',
+                                    color: 'white',
+                                    border: 'none',
+                                    padding: '8px 16px',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    fontSize: '13px',
+                                    fontWeight: '600'
+                                  }}
+                                >
+                                  🗑️ Удалить
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+              )}
             </div>
           </div>
         </div>

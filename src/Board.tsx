@@ -1016,6 +1016,59 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
 
   // ========== КОНЕЦ ЛОГИКИ ТАЙМЕРА КУРЕНИЯ ==========
 
+  // ========== ЛОГИКА ПРОВЕРКИ И ОТПРАВКИ ЗАДАЧ ==========
+  
+  useEffect(() => {
+    const checkAndSendTasks = async () => {
+      try {
+        // Получаем локальное время (с учетом тестового времени)
+        const now = getNow();
+        
+        // Вызываем API для проверки и отправки задач
+        const testTimeOverride = localStorage.getItem('appTimeOverride');
+        const payload: any = {
+          currentTime: now.toISOString()
+        };
+        
+        if (testTimeOverride) {
+          payload.testDate = testTimeOverride;
+        }
+        
+        const response = await fetch(`${API_URL}/api/tasks/check-and-send`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          if (result.checked > 0) {
+            console.log(`📋 Проверено задач: ${result.checked}`);
+            result.results.forEach((r: any) => {
+              if (r.success) {
+                console.log(`   ✅ Задача ${r.taskId} отправлена (${r.sent}/${r.total})`);
+              } else {
+                console.warn(`   ⚠️ Задача ${r.taskId}: ${r.error}`);
+              }
+            });
+          }
+        }
+      } catch (error) {
+        console.error('❌ Ошибка проверки задач:', error);
+      }
+    };
+    
+    // Проверяем задачи каждую минуту
+    const interval = setInterval(checkAndSendTasks, 60 * 1000);
+    
+    // Также проверяем сразу при загрузке
+    checkAndSendTasks();
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  // ========== КОНЕЦ ЛОГИКИ ПРОВЕРКИ ЗАДАЧ ==========
+
   // Ежедневное уведомление в 18:50, если есть хотя бы одна HH-бронирование в текущем филиале
   useEffect(() => {
     let alertedKey = `hh_alerted_${getNow().toDateString()}`;
