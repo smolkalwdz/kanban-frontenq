@@ -1127,23 +1127,30 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                   }
 
                   try {
-                    // Используем локальное время из канбан-доски
-                    const now = getNow();
-                    
                     // Парсим время из формы (HH:MM)
                     const [hours, minutes] = taskForm.scheduledTime.split(':');
-                    const scheduledDate = new Date(now);
-                    scheduledDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+                    let scheduledTimeValue;
                     
-                    // Если время уже прошло сегодня, ставим на завтра
-                    if (scheduledDate <= now) {
-                      scheduledDate.setDate(scheduledDate.getDate() + 1);
+                    if (taskForm.isRecurring) {
+                      // Для регулярных задач сохраняем только время (HH:MM)
+                      scheduledTimeValue = taskForm.scheduledTime;
+                    } else {
+                      // Для единоразовых задач сохраняем полную дату и время
+                      const now = getNow();
+                      const scheduledDate = new Date(now);
+                      scheduledDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+                      
+                      // Если время уже прошло сегодня, ставим на завтра
+                      if (scheduledDate <= now) {
+                        scheduledDate.setDate(scheduledDate.getDate() + 1);
+                      }
+                      scheduledTimeValue = scheduledDate.toISOString();
                     }
 
                     const taskData = {
                       title: taskForm.title.trim(),
                       message: taskForm.message.trim(),
-                      scheduledTime: scheduledDate.toISOString(),
+                      scheduledTime: scheduledTimeValue,
                       branch: taskForm.branch,
                       isRecurring: taskForm.isRecurring
                     };
@@ -1336,11 +1343,27 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                 </div>
               ) : (
                 tasks
-                  .sort((a, b) => new Date(a.scheduledTime).getTime() - new Date(b.scheduledTime).getTime())
+                  .sort((a, b) => {
+                    // Для сортировки: регулярные задачи по времени, единоразовые по дате
+                    if (a.isRecurring && b.isRecurring) {
+                      // Обе регулярные - сортируем по времени
+                      return a.scheduledTime.localeCompare(b.scheduledTime);
+                    } else if (a.isRecurring) {
+                      return -1; // Регулярные вверх
+                    } else if (b.isRecurring) {
+                      return 1;
+                    } else {
+                      // Обе единоразовые - сортируем по дате
+                      return new Date(a.scheduledTime).getTime() - new Date(b.scheduledTime).getTime();
+                    }
+                  })
                   .map((task) => {
-                    const scheduledDate = new Date(task.scheduledTime);
+                    // Для регулярных задач scheduledTime - это строка "HH:MM", для единоразовых - ISO дата
+                    const scheduledDate = task.isRecurring 
+                      ? null 
+                      : new Date(task.scheduledTime);
                     const now = getNow();
-                    const isPast = scheduledDate <= now;
+                    const isPast = !task.isRecurring && scheduledDate && scheduledDate <= now;
                     
                     return (
                       <div 
@@ -1366,13 +1389,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                             <div style={{ display: 'flex', gap: '15px', fontSize: '12px', color: '#6b7280', flexWrap: 'wrap' }}>
                               <span>🏢 {task.branch}</span>
                               <span>{task.isRecurring ? '🔁 Регулярная' : '📌 Единоразовая'}</span>
-                              <span>⏰ {scheduledDate.toLocaleString('ru-RU', { 
-                                day: '2-digit', 
-                                month: '2-digit', 
-                                year: 'numeric',
-                                hour: '2-digit', 
-                                minute: '2-digit' 
-                              })}</span>
+                              <span>⏰ {
+                                task.isRecurring 
+                                  ? task.scheduledTime // Для регулярных показываем только время "HH:MM"
+                                  : scheduledDate ? scheduledDate.toLocaleString('ru-RU', { 
+                                      day: '2-digit', 
+                                      month: '2-digit', 
+                                      year: 'numeric',
+                                      hour: '2-digit', 
+                                      minute: '2-digit' 
+                                    }) : task.scheduledTime
+                              }</span>
                               {isPast && !task.isSent && !task.isRecurring && (
                                 <span style={{ color: '#ef4444', fontWeight: '600' }}>⚠️ Просрочено</span>
                               )}
@@ -1384,11 +1411,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                                 <button 
                                   onClick={() => {
                                     setEditingTask(task);
-                                    const date = new Date(task.scheduledTime);
-                                    // Учитываем локальную временную зону
-                                    const hours = date.getHours();
-                                    const minutes = date.getMinutes();
-                                    const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+                                    let timeStr;
+                                    if (task.isRecurring) {
+                                      // Для регулярных задач время уже в формате "HH:MM"
+                                      timeStr = task.scheduledTime;
+                                    } else {
+                                      // Для единоразовых задач парсим из ISO даты
+                                      const date = new Date(task.scheduledTime);
+                                      const hours = date.getHours();
+                                      const minutes = date.getMinutes();
+                                      timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+                                    }
                                     setTaskForm({ 
                                       title: task.title, 
                                       message: task.message, 
