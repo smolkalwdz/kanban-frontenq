@@ -31,7 +31,9 @@ interface Task {
   message: string;
   scheduledTime: string; // ISO строка времени
   branch: 'МСК' | 'Полевая';
+  isRecurring: boolean; // Регулярная задача
   isSent: boolean;
+  lastSentDate?: string; // Дата последней отправки (для регулярных задач)
   createdAt: string;
 }
 
@@ -81,7 +83,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     title: '', 
     message: '', 
     scheduledTime: '',
-    branch: 'МСК' as 'МСК' | 'Полевая'
+    branch: 'МСК' as 'МСК' | 'Полевая',
+    isRecurring: false
   });
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -1089,7 +1092,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
               <button 
                 onClick={() => {
                   setIsAddingTask(true);
-                  setTaskForm({ title: '', message: '', scheduledTime: '', branch: 'МСК' });
+                  setTaskForm({ title: '', message: '', scheduledTime: '', branch: 'МСК', isRecurring: false });
                 }}
                 style={{
                   background: 'linear-gradient(135deg, #10b981, #34d399)',
@@ -1141,7 +1144,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                       title: taskForm.title.trim(),
                       message: taskForm.message.trim(),
                       scheduledTime: scheduledDate.toISOString(),
-                      branch: taskForm.branch
+                      branch: taskForm.branch,
+                      isRecurring: taskForm.isRecurring
                     };
 
                     if (editingTask) {
@@ -1153,7 +1157,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                       if (response.ok) {
                         await loadTasks();
                         setEditingTask(null);
-                        setTaskForm({ title: '', message: '', scheduledTime: '', branch: 'МСК' });
+                        setTaskForm({ title: '', message: '', scheduledTime: '', branch: 'МСК', isRecurring: false });
                         alert('✅ Задача обновлена');
                       }
                     } else {
@@ -1165,7 +1169,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                       if (response.ok) {
                         await loadTasks();
                         setIsAddingTask(false);
-                        setTaskForm({ title: '', message: '', scheduledTime: '', branch: 'МСК' });
+                        setTaskForm({ title: '', message: '', scheduledTime: '', branch: 'МСК', isRecurring: false });
                         alert('✅ Задача создана');
                       }
                     }
@@ -1252,6 +1256,32 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                         </button>
                       </div>
                     </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>
+                        Тип задачи *
+                      </label>
+                      <div className="branch-selector">
+                        <button 
+                          type="button"
+                          onClick={() => setTaskForm(prev => ({ ...prev, isRecurring: false }))}
+                          className={`branch-btn ${!taskForm.isRecurring ? 'active' : ''}`}
+                        >
+                          📌 Единоразовая
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => setTaskForm(prev => ({ ...prev, isRecurring: true }))}
+                          className={`branch-btn ${taskForm.isRecurring ? 'active' : ''}`}
+                        >
+                          🔁 Регулярная
+                        </button>
+                      </div>
+                      <small style={{ color: '#666', display: 'block', marginTop: '5px' }}>
+                        {taskForm.isRecurring 
+                          ? 'Регулярная: отправляется каждый день в указанное время' 
+                          : 'Единоразовая: отправляется один раз в указанное время'}
+                      </small>
+                    </div>
                     <div style={{ display: 'flex', gap: '10px' }}>
                       <button 
                         type="submit"
@@ -1272,7 +1302,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                         onClick={() => {
                           setIsAddingTask(false);
                           setEditingTask(null);
-                          setTaskForm({ title: '', message: '', scheduledTime: '', branch: 'МСК' });
+                          setTaskForm({ title: '', message: '', scheduledTime: '', branch: 'МСК', isRecurring: false });
                         }}
                         style={{
                           background: '#6b7280',
@@ -1335,6 +1365,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                             </p>
                             <div style={{ display: 'flex', gap: '15px', fontSize: '12px', color: '#6b7280', flexWrap: 'wrap' }}>
                               <span>🏢 {task.branch}</span>
+                              <span>{task.isRecurring ? '🔁 Регулярная' : '📌 Единоразовая'}</span>
                               <span>⏰ {scheduledDate.toLocaleString('ru-RU', { 
                                 day: '2-digit', 
                                 month: '2-digit', 
@@ -1342,13 +1373,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                                 hour: '2-digit', 
                                 minute: '2-digit' 
                               })}</span>
-                              {isPast && !task.isSent && (
+                              {isPast && !task.isSent && !task.isRecurring && (
                                 <span style={{ color: '#ef4444', fontWeight: '600' }}>⚠️ Просрочено</span>
                               )}
                             </div>
                           </div>
                           <div style={{ display: 'flex', gap: '8px' }}>
-                            {!task.isSent && (
+                            {(!task.isSent || task.isRecurring) && (
                               <>
                                 <button 
                                   onClick={() => {
@@ -1362,7 +1393,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                                       title: task.title, 
                                       message: task.message, 
                                       scheduledTime: timeStr,
-                                      branch: task.branch 
+                                      branch: task.branch,
+                                      isRecurring: task.isRecurring || false
                                     });
                                     setIsAddingTask(false);
                                   }}
