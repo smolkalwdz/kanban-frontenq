@@ -12,6 +12,16 @@ interface Table {
   isNotCleaned?: boolean;
 }
 
+interface TableCall {
+  id: string;
+  branch: string;
+  tableId: number;
+  callType: 'waiter' | 'hookah' | 'gamemaster';
+  timestamp: string;
+  resolved: boolean;
+  count?: number;
+}
+
 interface Booking {
   id: string;
   name: string;
@@ -339,11 +349,13 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   };
   const [tables, setTables] = useState<Table[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [tableCalls, setTableCalls] = useState<TableCall[]>([]);
   const [currentBranch, setCurrentBranch] = useState<'МСК' | 'Полевая'>(() => {
     // Получаем сохраненный филиал из localStorage или используем 'МСК' по умолчанию
     return (localStorage.getItem('currentBranch') as 'МСК' | 'Полевая') || 'МСК';
   });
   const [currentShift, setCurrentShift] = useState<CurrentShift | null>(null);
+  const logoUrl = `${process.env.PUBLIC_URL}/logo.png`;
   
   // КРИТИЧНО: useRef для notifiedTimers чтобы избежать перезапуска при loadData
   const notifiedTimersRef = useRef<Set<string>>(
@@ -570,6 +582,11 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
           tableId: Number(b.tableId)
         }))
       );
+      
+      // Загружаем вызовы персонала
+      const callsRes = await fetch(`${API_URL}/api/table-calls`);
+      const callsData = await callsRes.json();
+      setTableCalls(callsData);
       
       setLastUpdate(new Date());
       console.log('✅ Данные обновлены:', new Date().toLocaleTimeString());
@@ -1328,6 +1345,34 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     }
   };
 
+  // Получить активные вызовы для стола
+  const getTableCalls = (tableId: number): TableCall[] => {
+    return tableCalls.filter(call => 
+      call.tableId === tableId && 
+      call.branch === currentBranch &&
+      !call.resolved
+    );
+  };
+
+  // Закрыть вызов
+  const handleResolveCall = async (callId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    try {
+      await fetch(`${API_URL}/api/table-calls/${callId}/resolve`, {
+        method: 'PUT',
+      });
+      
+      // Обновляем список вызовов
+      setTableCalls(prev => prev.filter(call => call.id !== callId));
+      
+      console.log(`✅ Вызов ${callId} закрыт`);
+    } catch (error) {
+      console.error('Error resolving call:', error);
+    }
+  };
+
   // Обработчик клика вне контекстного меню и формы быстрого бронирования
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -1380,11 +1425,14 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
 
       {/* Заголовок с переключателем филиалов */}
       <div className="header">
-        <div>
-          <h1>Канбан-доска броней</h1>
-          <button onClick={onOpenAdmin} className="admin-btn">
-            ⚙️ Админ панель
-          </button>
+        <div className="brand">
+          <img src={logoUrl} alt="logo" className="brand-logo" />
+          <div>
+            <h1>Канбан-доска броней</h1>
+            <button onClick={onOpenAdmin} className="admin-btn">
+              ⚙️ Админ панель
+            </button>
+          </div>
         </div>
         <div className="header-btns">
           <button 
@@ -1534,7 +1582,12 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
         {/* Только канбан-доска, форма слева удалена */}
         <div className="kanban-area">
           <div className="kanban-board-content">
-            {currentTables.map((table) => (
+            {currentTables.map((table) => {
+              const activeCalls = getTableCalls(table.id);
+              const hasWaiterCall = activeCalls.some(call => call.callType === 'waiter');
+              const hasHookahCall = activeCalls.some(call => call.callType === 'hookah');
+              
+              return (
           <div
             key={table.id}
             onDragOver={e => e.preventDefault()}
@@ -1545,13 +1598,36 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
               e.stopPropagation();
               handleContextMenu(e, table.id);
             }}
-            className={`zone-card ${table.isNotCleaned ? 'not-cleaned' : ''}`}
+            className={`zone-card ${table.isNotCleaned ? 'not-cleaned' : ''} ${activeCalls.length > 0 ? 'has-call' : ''}`}
             style={{ position: 'relative', cursor: 'pointer' }}
               >
                 <div className="zone-card-header">
                   {table.name}
                   {table.isNotCleaned && (
                     <div className="not-cleaned-indicator">Не убрана</div>
+                  )}
+                  {/* Индикаторы вызовов */}
+                  {activeCalls.length > 0 && (
+                    <div className="call-indicators">
+                      {activeCalls.map(call => (
+                        <div 
+                          key={call.id} 
+                          className={`call-indicator ${call.callType}`}
+                          onClick={(e) => handleResolveCall(call.id, e)}
+                          title={`Закрыть вызов: ${call.callType === 'waiter' ? 'Сотрудник' : 'Кальянщик'}`}
+                        >
+                          <span className="call-icon">
+                            {call.callType === 'waiter' ? '👨‍💼' : call.callType === 'hookah' ? '🌬️' : '🎮'}
+                          </span>
+                          <span className="call-label">
+                            {call.callType === 'waiter' ? 'Администратор' : call.callType === 'hookah' ? 'Кальянный мастер' : 'Игровед / PS5'}
+                          </span>
+                          {call.count && call.count > 1 && (
+                            <span className="call-count">×{call.count}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
                 <div className="zone-card-body">
@@ -1603,7 +1679,8 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                 </div>
                 <div className="zone-card-footer">{table.capacity} чел.</div>
                 </div>
-              ))}
+              );
+            })}
             </div>
           </div>
       </div>
