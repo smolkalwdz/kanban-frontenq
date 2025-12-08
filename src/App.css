@@ -215,6 +215,22 @@ body {
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-logo {
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+}
+
 .header h1 {
   margin: 0;
   font-size: 16px;
@@ -1752,5 +1768,139 @@ input:focus, select:focus {
   }
   50% {
     background: rgba(255, 0, 0, 0.35);
+  }
+}
+
+/* ========== ИНДИКАТОРЫ ВЫЗОВОВ ПЕРСОНАЛА (QR) ========== */
+
+/* Индикаторы вызовов в заголовке зоны */
+.call-indicators {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  width: 100%;
+}
+
+.call-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  animation: callPulse 2s ease-in-out infinite;
+  position: relative;
+  overflow: hidden;
+}
+
+.call-indicator::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  animation: callShine 2s ease-in-out infinite;
+}
+
+@keyframes callShine {
+  0%, 100% {
+    left: -100%;
+  }
+  50% {
+    left: 100%;
+  }
+}
+
+.call-indicator.waiter {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+}
+
+.call-indicator.hookah {
+  background: linear-gradient(135deg, #f093fb, #f5576c);
+  color: white;
+}
+
+.call-indicator.gamemaster {
+  background: linear-gradient(135deg, #34d399, #10b981);
+  color: white;
+}
+
+.call-indicator:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.call-indicator:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+@keyframes callPulse {
+  0%, 100% {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+  50% {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), 0 0 20px currentColor;
+  }
+}
+
+.call-icon {
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.call-label {
+  flex: 1;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.call-count {
+  background: rgba(255, 255, 255, 0.3);
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+/* Подсветка зоны с активным вызовом */
+.zone-card.has-call {
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.5), 0 8px 24px rgba(0, 0, 0, 0.2);
+  animation: zoneCallBlink 2s ease-in-out infinite;
+}
+
+@keyframes zoneCallBlink {
+  0%, 100% {
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.5), 0 8px 24px rgba(0, 0, 0, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(102, 126, 234, 0.8), 0 12px 32px rgba(0, 0, 0, 0.3);
+  }
+}
+
+.zone-card.has-call .zone-card-header {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+  border-radius: 8px 8px 0 0;
+}
+
+/* Адаптивность для индикаторов вызовов */
+@media (max-width: 768px) {
+  .call-indicator {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  .call-icon {
+    font-size: 18px;
   }
 }
