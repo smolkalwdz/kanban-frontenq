@@ -10,7 +10,7 @@ interface TableCallProps {
 type CallType = 'waiter' | 'hookah' | 'gamemaster';
 
 const TableCall: React.FC<TableCallProps> = ({ branch, tableId }) => {
-  const logoSrc = `${process.env.PUBLIC_URL}/Logo2.png`;
+  const logoSrc = `${process.env.PUBLIC_URL}/logo2.png`;
   const [tableName, setTableName] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);

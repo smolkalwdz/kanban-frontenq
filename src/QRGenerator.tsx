@@ -14,7 +14,7 @@ const QRGenerator: React.FC = () => {
   const [tables, setTables] = useState<Table[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<'МСК' | 'Полевая' | 'all'>('all');
   const [loading, setLoading] = useState(true);
-  const logoSrc = `${process.env.PUBLIC_URL}/Logo1.png`;
+  const logoSrc = `${process.env.PUBLIC_URL}/logo1.png`;
 
   useEffect(() => {
     loadTables();

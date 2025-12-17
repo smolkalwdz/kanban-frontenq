@@ -356,7 +356,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     return (localStorage.getItem('currentBranch') as 'МСК' | 'Полевая') || 'МСК';
   });
   const [currentShift, setCurrentShift] = useState<CurrentShift | null>(null);
-  const logoUrl = `${process.env.PUBLIC_URL}/Logo1.png`;
+  const logoUrl = `${process.env.PUBLIC_URL}/logo1.png`;
   
   // КРИТИЧНО: useRef для notifiedTimers чтобы избежать перезапуска при loadData
   const notifiedTimersRef = useRef<Set<string>>(
