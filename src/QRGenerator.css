@@ -26,12 +26,14 @@
 }
 
 .controls-logo {
-  width: 50px;
-  height: 50px;
+  width: 120px;
+  height: 120px;
   object-fit: contain;
-  background: #fff;
-  padding: 5px;
-  border-radius: 12px;
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  /* Добавляем контраст для темного фона */
+  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.3)) drop-shadow(0 0 12px rgba(255, 255, 255, 0.2));
 }
 
 .qr-controls h1 {
@@ -154,29 +156,31 @@
 .qr-card-header {
   width: 100%;
   text-align: center;
-  margin-bottom: 20px;
+  margin-bottom: 6px;
   display: flex;
   flex-direction: column;
   align-items: center;
 }
 
 .qr-logo-container {
-  width: 80px;
-  height: 80px;
-  background: #fff;
-  border-radius: 16px;
-  padding: 10px;
+  width: 240px;
+  height: 240px;
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 16px;
-  box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+  margin-bottom: 6px;
+  box-shadow: none;
 }
 
 .qr-logo-container img {
   width: 100%;
   height: 100%;
   object-fit: contain;
+  /* Добавляем контраст для темного фона */
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.4)) drop-shadow(0 0 15px rgba(255, 255, 255, 0.3));
 }
 
 .qr-branch {
@@ -185,18 +189,20 @@
   color: #888;
   text-transform: uppercase;
   letter-spacing: 2px;
-  margin-bottom: 4px;
+  margin-bottom: 8px;
+  margin-top: 8px;
 }
 
 .qr-table-name {
-  font-size: 24px;
+  font-size: 26px;
   font-weight: 800;
   color: #ffffff;
   text-transform: uppercase;
+  margin-bottom: 8px;
 }
 
 .qr-code-wrapper {
-  margin: 0 0 20px 0;
+  margin: 0 0 6px 0;
   padding: 15px;
   background: white;
   border-radius: 16px;
@@ -210,12 +216,13 @@
 
 .qr-instruction {
   margin: 0 0 8px 0;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 700;
   color: #888;
   text-transform: uppercase;
   letter-spacing: 1px;
   line-height: 1.4;
+  text-align: center;
 }
 
 .qr-url {
@@ -263,17 +270,19 @@
 
   .qr-card {
     box-shadow: none;
-    border: 1px solid #000;
-    padding: 15px;
+    border: 4px solid #000;
+    border-radius: 12px;
+    padding: 4px;
     background: white;
     page-break-inside: avoid;
     break-inside: avoid;
   }
 
   .qr-logo-container {
-    background: none;
+    background: transparent;
     box-shadow: none;
-    border: 1px solid #eee;
+    border: none;
+    padding: 0;
   }
   
   .qr-branch {
@@ -286,11 +295,16 @@
   
   .qr-instruction {
     color: #000;
+    font-size: 20px;
+    font-weight: 700;
+    text-align: center;
   }
 
   .qr-code-wrapper {
     box-shadow: none;
-    border: 1px solid #eee;
+    border: none;
+    background: transparent;
+    padding: 0;
   }
 }
 

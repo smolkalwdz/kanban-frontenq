@@ -11,7 +11,9 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, onCancel }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === '95859585') {
+    if (password === '9585') {
+      // Сохраняем авторизацию
+      localStorage.setItem('isAuthenticated', 'true');
       onLogin();
     } else {
       setError('Неверный пароль');
@@ -52,4 +54,4 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, onCancel }) => {
   );
 };
 
-export default LoginForm; 
+export default LoginForm;

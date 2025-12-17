@@ -20,6 +20,7 @@ interface TableCall {
   timestamp: string;
   resolved: boolean;
   count?: number;
+  comment?: string;
 }
 
 interface Booking {
@@ -355,7 +356,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     return (localStorage.getItem('currentBranch') as 'МСК' | 'Полевая') || 'МСК';
   });
   const [currentShift, setCurrentShift] = useState<CurrentShift | null>(null);
-  const logoUrl = `${process.env.PUBLIC_URL}/logo.png`;
+  const logoUrl = `${process.env.PUBLIC_URL}/Logo1.png`;
   
   // КРИТИЧНО: useRef для notifiedTimers чтобы избежать перезапуска при loadData
   const notifiedTimersRef = useRef<Set<string>>(
@@ -454,6 +455,12 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   const handleBranchChange = (branch: 'МСК' | 'Полевая') => {
     setCurrentBranch(branch);
     localStorage.setItem('currentBranch', branch);
+  };
+
+  // Функция выхода из системы
+  const handleLogout = () => {
+    localStorage.removeItem('isAuthenticated');
+    window.location.href = '/login';
   };
 
   // Получаем столы текущего филиала и сортируем по имени
@@ -1429,9 +1436,14 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
           <img src={logoUrl} alt="logo" className="brand-logo" />
           <div>
             <h1>Канбан-доска броней</h1>
-            <button onClick={onOpenAdmin} className="admin-btn">
-              ⚙️ Админ панель
-            </button>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={onOpenAdmin} className="admin-btn">
+                ⚙️ Админ панель
+              </button>
+              <button onClick={handleLogout} className="admin-btn" style={{ background: '#dc2626' }}>
+                🚪 Выход
+              </button>
+            </div>
           </div>
         </div>
         <div className="header-btns">
@@ -1619,9 +1631,16 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                           <span className="call-icon">
                             {call.callType === 'waiter' ? '👨‍💼' : call.callType === 'hookah' ? '🌬️' : '🎮'}
                           </span>
-                          <span className="call-label">
-                            {call.callType === 'waiter' ? 'Администратор' : call.callType === 'hookah' ? 'Кальянный мастер' : 'Игровед / PS5'}
-                          </span>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'flex-start' }}>
+                            <span className="call-label">
+                              {call.callType === 'waiter' ? 'Администратор' : call.callType === 'hookah' ? 'Кальянный мастер' : 'Игровед / PS5'}
+                            </span>
+                            {call.comment && (
+                              <span className="call-comment">
+                                💬 {call.comment}
+                              </span>
+                            )}
+                          </div>
                           {call.count && call.count > 1 && (
                             <span className="call-count">×{call.count}</span>
                           )}

@@ -14,7 +14,7 @@ const QRGenerator: React.FC = () => {
   const [tables, setTables] = useState<Table[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<'МСК' | 'Полевая' | 'all'>('all');
   const [loading, setLoading] = useState(true);
-  const logoSrc = `${process.env.PUBLIC_URL}/logo.png`;
+  const logoSrc = `${process.env.PUBLIC_URL}/Logo1.png`;
 
   useEffect(() => {
     loadTables();
@@ -114,7 +114,6 @@ const QRGenerator: React.FC = () => {
 
             <div className="qr-footer">
               <p className="qr-instruction">Наведите камеру<br/>для вызова персонала</p>
-              <p className="qr-url">#{table.id}</p>
             </div>
           </div>
         ))}
