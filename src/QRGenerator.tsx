@@ -13,12 +13,23 @@ interface Table {
 const QRGenerator: React.FC = () => {
   const [tables, setTables] = useState<Table[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<'МСК' | 'Полевая' | 'all'>('all');
+  const [printStyle, setPrintStyle] = useState<'dark' | 'light'>('light');
   const [loading, setLoading] = useState(true);
   const logoSrc = `${process.env.PUBLIC_URL}/logo1.png`;
 
   useEffect(() => {
     loadTables();
   }, []);
+
+  useEffect(() => {
+    if (printStyle === 'dark') {
+      document.body.classList.add('dark-print-mode');
+      document.documentElement.classList.add('dark-print-mode');
+    } else {
+      document.body.classList.remove('dark-print-mode');
+      document.documentElement.classList.remove('dark-print-mode');
+    }
+  }, [printStyle]);
 
   const loadTables = async () => {
     try {
@@ -58,7 +69,7 @@ const QRGenerator: React.FC = () => {
   }
 
   return (
-    <div className="qr-generator-container">
+    <div className={`qr-generator-container ${printStyle === 'dark' ? 'dark-print-mode' : ''}`}>
       <div className="qr-controls no-print">
         <div className="controls-header">
            <img src={logoSrc} alt="logo" className="controls-logo"/>
@@ -78,6 +89,17 @@ const QRGenerator: React.FC = () => {
             </select>
           </label>
 
+          <label>
+            Стиль печати:
+            <select 
+              value={printStyle} 
+              onChange={(e) => setPrintStyle(e.target.value as 'dark' | 'light')}
+            >
+              <option value="light">Белый фон</option>
+              <option value="dark">Темный фон</option>
+            </select>
+          </label>
+
           <button onClick={handlePrint} className="print-button">
             🖨️ Печать
           </button>
@@ -94,7 +116,7 @@ const QRGenerator: React.FC = () => {
 
       <div className="qr-grid">
         {filteredTables.map(table => (
-          <div key={table.id} className="qr-card">
+          <div key={table.id} className={`qr-card ${printStyle === 'dark' ? 'dark-card' : ''}`}>
             <div className="qr-card-header">
               <div className="qr-logo-container">
                 <img src={logoSrc} alt="logo" />
@@ -106,7 +128,7 @@ const QRGenerator: React.FC = () => {
             <div className="qr-code-wrapper">
               <QRCodeSVG 
                 value={getTableUrl(table)}
-                size={180}
+                size={280}
                 level="H"
                 includeMargin={true}
               />
