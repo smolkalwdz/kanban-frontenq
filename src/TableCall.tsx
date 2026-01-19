@@ -56,9 +56,19 @@ const TableCall: React.FC<TableCallProps> = ({ branch, tableId }) => {
 
       if (response.ok) {
         let successMessage = '';
-        if (callType === 'waiter') successMessage = '✅ Сотрудник вызван! Скоро подойдёт.';
-        else if (callType === 'hookah') successMessage = '✅ Кальянный мастер вызван! Скоро подойдёт.';
-        else if (callType === 'gamemaster') successMessage = '✅ Игровед вызван! Скоро подойдёт.';
+        if (callType === 'waiter') {
+          successMessage = comment 
+            ? `✅ Запрос отправлен: ${comment}. Скоро подойдёт.`
+            : '✅ Сотрудник вызван! Скоро подойдёт.';
+        } else if (callType === 'hookah') {
+          successMessage = comment 
+            ? `✅ Запрос отправлен: ${comment}. Скоро подойдёт.`
+            : '✅ Кальянный мастер вызван! Скоро подойдёт.';
+        } else if (callType === 'gamemaster') {
+          successMessage = comment 
+            ? `✅ Запрос отправлен: ${comment}. Скоро подойдёт.`
+            : '✅ Игровед вызван! Скоро подойдёт.';
+        }
 
         setMessage({ 
           text: successMessage,
@@ -119,6 +129,27 @@ const TableCall: React.FC<TableCallProps> = ({ branch, tableId }) => {
             <span className="call-icon">🎲</span>
             <span className="call-text">НАШИ ИГРЫ</span>
           </a>
+
+          <a 
+            href="https://vk.com/@dungeon_samara-akcii-taim-kafe-dungeon" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="call-button games-link"
+          >
+            <span className="call-icon">🎁</span>
+            <span className="call-text">НАШИ АКЦИИ</span>
+          </a>
+
+          <a 
+            href="https://t.me/DUNGEON_K_BOT" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="call-button games-link"
+            title="5 кальянов скуриваете - 6 бесплатный"
+          >
+            <span className="call-icon">🚬</span>
+            <span className="call-text">6 КАЛЬЯН БЕСПЛАТНО</span>
+          </a>
         </div>
 
         {message && (
@@ -158,9 +189,37 @@ const TableCall: React.FC<TableCallProps> = ({ branch, tableId }) => {
               
               <button 
                 className="modal-option-btn"
+                onClick={() => handleCall('gamemaster', 'Заменить Геймпад')}
+              >
+                🎮 Заменить Геймпад
+              </button>
+              
+              <button 
+                className="modal-option-btn"
                 onClick={() => handleCall('waiter', 'Выключается телевизор')}
               >
                 📺 Выключается телевизор
+              </button>
+
+              <button 
+                className="modal-option-btn"
+                onClick={() => handleCall('hookah', 'Заказать Кальян')}
+              >
+                🌬️ Заказать Кальян
+              </button>
+
+              <button 
+                className="modal-option-btn"
+                onClick={() => handleCall('hookah', 'Вызвать Кальянного Мастера')}
+              >
+                👨‍🔧 Вызвать Кальянного Мастера
+              </button>
+
+              <button 
+                className="modal-option-btn"
+                onClick={() => handleCall('hookah', 'Забрать Кальян')}
+              >
+                🚪 Забрать Кальян
               </button>
 
               <div className="modal-input-container">
