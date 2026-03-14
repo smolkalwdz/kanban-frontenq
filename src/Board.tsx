@@ -822,11 +822,17 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     
     if (editingBooking.endTime !== (editForm.endTime || undefined)) {
       const bookingPrefix = `${editingBooking.id}_`;
-      const updatedNotified = new Set(
+      const updatedEndingNotified = new Set(
         Array.from(notifiedEndingBookingsRef.current).filter(key => !key.startsWith(bookingPrefix))
       );
-      notifiedEndingBookingsRef.current = updatedNotified;
-      saveNotifiedEndingBookings(updatedNotified);
+      notifiedEndingBookingsRef.current = updatedEndingNotified;
+      saveNotifiedEndingBookings(updatedEndingNotified);
+
+      const updatedEndedNotified = new Set(
+        Array.from(notifiedEndedBookingsRef.current).filter(key => !key.startsWith(bookingPrefix))
+      );
+      notifiedEndedBookingsRef.current = updatedEndedNotified;
+      saveNotifiedEndedBookings(updatedEndedNotified);
     }
 
     const res = await fetch(`${API_URL}/api/bookings/${editingBooking.id}`, {
@@ -906,11 +912,17 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       await fetch(`${API_URL}/api/bookings/${id}`, { method: 'DELETE' });
       setBookings(prev => prev.filter(b => b.id !== id));
       const bookingPrefix = `${id}_`;
-      const updatedNotified = new Set(
+      const updatedEndingNotified = new Set(
         Array.from(notifiedEndingBookingsRef.current).filter(key => !key.startsWith(bookingPrefix))
       );
-      notifiedEndingBookingsRef.current = updatedNotified;
-      saveNotifiedEndingBookings(updatedNotified);
+      notifiedEndingBookingsRef.current = updatedEndingNotified;
+      saveNotifiedEndingBookings(updatedEndingNotified);
+
+      const updatedEndedNotified = new Set(
+        Array.from(notifiedEndedBookingsRef.current).filter(key => !key.startsWith(bookingPrefix))
+      );
+      notifiedEndedBookingsRef.current = updatedEndedNotified;
+      saveNotifiedEndedBookings(updatedEndedNotified);
     }
   };
 
@@ -967,13 +979,26 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     return endToday;
   };
 
-  const getEndingSoonInfo = (booking: Booking): { minutesLeft: number; label: string } | null => {
+  const getBookingEndDiffMs = (booking: Booking): number | null => {
     const endDate = getBookingEndDate(booking);
     if (!endDate) return null;
-    const diffMs = endDate.getTime() - getNow().getTime();
+    return endDate.getTime() - getNow().getTime();
+  };
+
+  const getEndingSoonInfo = (booking: Booking): { minutesLeft: number; label: string } | null => {
+    const diffMs = getBookingEndDiffMs(booking);
+    if (diffMs === null) return null;
     if (diffMs <= 0 || diffMs > 10 * 60 * 1000) return null;
     const minutesLeft = Math.max(1, Math.ceil(diffMs / (60 * 1000)));
     return { minutesLeft, label: `⏳ ВРЕМЯ ЗАКАНЧИВАЕТСЯ (${minutesLeft} мин)` };
+  };
+
+  const getEndedInfo = (booking: Booking): { minutesOver: number } | null => {
+    const diffMs = getBookingEndDiffMs(booking);
+    if (diffMs === null) return null;
+    // Даем 10 минут окна, чтобы не слать старые просрочки при перезагрузке страницы
+    if (diffMs > 0 || diffMs < -10 * 60 * 1000) return null;
+    return { minutesOver: Math.max(0, Math.floor(Math.abs(diffMs) / (60 * 1000))) };
   };
 
   const notifiedEndingBookingsRef = useRef<Set<string>>(
@@ -989,6 +1014,21 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
 
   const saveNotifiedEndingBookings = (keys: Set<string>) => {
     localStorage.setItem('booking_ending_notified', JSON.stringify(Array.from(keys)));
+  };
+
+  const notifiedEndedBookingsRef = useRef<Set<string>>(
+    (() => {
+      try {
+        const stored = localStorage.getItem('booking_ended_notified');
+        return stored ? new Set(JSON.parse(stored)) : new Set();
+      } catch {
+        return new Set();
+      }
+    })()
+  );
+
+  const saveNotifiedEndedBookings = (keys: Set<string>) => {
+    localStorage.setItem('booking_ended_notified', JSON.stringify(Array.from(keys)));
   };
 
   // ========== ЛОГИКА ТАЙМЕРА КУРЕНИЯ ==========
@@ -1233,6 +1273,68 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     };
 
     const interval = setInterval(checkBookingEndingAndNotify, 15 * 1000);
+    return () => clearInterval(interval);
+  }, [bookings, currentBranch, tables]);
+
+  // Уведомление в момент окончания брони (поле "До времени")
+  useEffect(() => {
+    const checkBookingEndedAndNotify = async () => {
+      const notified = notifiedEndedBookingsRef.current;
+      const testTimeOverride = localStorage.getItem('appTimeOverride');
+
+      for (const booking of bookings) {
+        if (booking.branch !== currentBranch || !booking.endTime) continue;
+        const endedInfo = getEndedInfo(booking);
+        if (!endedInfo) continue;
+
+        const notificationKey = `${booking.id}_${booking.endTime}`;
+        if (notified.has(notificationKey)) continue;
+
+        notified.add(notificationKey);
+        saveNotifiedEndedBookings(notified);
+
+        const table = tables.find(t => String(t.id) === String(booking.tableId));
+        const zoneName = table?.name || `Зона ${booking.tableId}`;
+
+        try {
+          const payload: any = {
+            branch: booking.branch,
+            zoneName,
+            guestName: booking.name,
+            endTime: booking.endTime,
+            minutesOver: endedInfo.minutesOver
+          };
+          if (testTimeOverride) {
+            payload.testDate = testTimeOverride;
+          }
+
+          const response = await fetch(`${API_URL}/api/telegram/notify-booking-ended`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          if (!response.ok) {
+            console.error('❌ Ошибка отправки уведомления об окончании брони');
+          }
+        } catch (error) {
+          console.error('❌ Ошибка отправки уведомления об окончании времени:', error);
+        }
+      }
+
+      const validPrefixes = new Set(bookings.map(b => `${b.id}_`));
+      const cleaned = new Set(
+        Array.from(notified).filter(key =>
+          Array.from(validPrefixes).some(prefix => key.startsWith(prefix))
+        )
+      );
+      if (cleaned.size !== notified.size) {
+        notifiedEndedBookingsRef.current = cleaned;
+        saveNotifiedEndedBookings(cleaned);
+      }
+    };
+
+    const interval = setInterval(checkBookingEndedAndNotify, 15 * 1000);
     return () => clearInterval(interval);
   }, [bookings, currentBranch, tables]);
 
