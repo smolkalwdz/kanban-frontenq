@@ -491,6 +491,18 @@ body {
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
 }
 
+.booking-ending-warning {
+  font-size: 12px;
+  font-weight: 900;
+  color: #ffffff;
+  background: #dc2626;
+  border-radius: 6px;
+  padding: 4px 6px;
+  margin-bottom: 4px;
+  text-align: center;
+  letter-spacing: 0.2px;
+}
+
 .booking-card .booking-guests {
   font-size: 15px;
   color: #047857;
@@ -1768,6 +1780,35 @@ input:focus, select:focus {
   }
   50% {
     background: rgba(255, 0, 0, 0.35);
+  }
+}
+
+/* ========== ПРЕДУПРЕЖДЕНИЕ "ДО ВРЕМЕНИ" ========== */
+.booking-card.booking-ending-soon {
+  animation: bookingEndingBlink 0.9s ease-in-out infinite;
+  outline: 3px solid #facc15;
+  outline-offset: 2px;
+}
+
+.booking-card.booking-ending-soon .booking-ending-warning {
+  animation: bookingEndingLabelBlink 0.7s ease-in-out infinite;
+}
+
+@keyframes bookingEndingBlink {
+  0%, 100% {
+    box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.25) inset, 0 0 14px rgba(250, 204, 21, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.55) inset, 0 0 24px rgba(250, 204, 21, 0.75);
+  }
+}
+
+@keyframes bookingEndingLabelBlink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
   }
 }
 

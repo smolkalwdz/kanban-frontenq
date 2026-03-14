@@ -27,6 +27,7 @@ interface Booking {
   id: string;
   name: string;
   time: string;
+  endTime?: string;
   guests: number;
   phone: string;
   source: SourceType;
@@ -72,6 +73,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   const [quickForm, setQuickForm] = useState({
     name: '',
     time: '',
+    endTime: '',
     guests: 1,
     phone: '',
     comment: '',
@@ -149,6 +151,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     setQuickForm({
       name: '',
       time: '',
+      endTime: '',
       guests: 1,
       phone: '',
       comment: '',
@@ -231,6 +234,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     const newBooking: Omit<Booking, 'id'> = {
       name: quickForm.name.trim(),
       time: quickForm.time.trim(),
+      endTime: quickForm.endTime.trim() || undefined,
       tableId: quickBooking.tableId,
       guests: quickForm.guests,
       phone: quickForm.phone.trim(),
@@ -264,6 +268,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       setQuickForm({
         name: '',
         time: '',
+        endTime: '',
         guests: 1,
         phone: '',
         comment: '',
@@ -426,6 +431,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   const [editForm, setEditForm] = useState<{
     name: string;
     time: string;
+    endTime: string;
     guests: number;
     phone: string;
     comment: string;
@@ -436,6 +442,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   }>({
     name: '',
     time: '',
+    endTime: '',
     guests: 1,
     phone: '',
     comment: '',
@@ -746,6 +753,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     setEditForm({
       name: booking.name,
       time: booking.time,
+      endTime: booking.endTime || '',
       guests: booking.guests,
       phone: booking.phone,
       comment: booking.comment || '',
@@ -812,12 +820,22 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       }
     }
     
+    if (editingBooking.endTime !== (editForm.endTime || undefined)) {
+      const bookingPrefix = `${editingBooking.id}_`;
+      const updatedNotified = new Set(
+        Array.from(notifiedEndingBookingsRef.current).filter(key => !key.startsWith(bookingPrefix))
+      );
+      notifiedEndingBookingsRef.current = updatedNotified;
+      saveNotifiedEndingBookings(updatedNotified);
+    }
+
     const res = await fetch(`${API_URL}/api/bookings/${editingBooking.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: editForm.name.trim(),
         time: editForm.time.trim(),
+        endTime: editForm.endTime.trim() || null,
         guests: editForm.guests,
         phone: editForm.phone.trim(),
         source: 'Лично' as SourceType,
@@ -831,12 +849,12 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     const updated = await res.json();
     setBookings(prev => prev.map(b => b.id === editingBooking.id ? { ...updated, isActive: b.isActive } : b));
     setEditingBooking(null);
-    setEditForm({ name: '', time: '', guests: 1, phone: '', comment: '', hasVR: false, hasShisha: false, isHappyHours: false, smokingTimer: false });
+    setEditForm({ name: '', time: '', endTime: '', guests: 1, phone: '', comment: '', hasVR: false, hasShisha: false, isHappyHours: false, smokingTimer: false });
   };
 
   const handleCancelBookingEdit = () => {
     setEditingBooking(null);
-    setEditForm({ name: '', time: '', guests: 1, phone: '', comment: '', hasVR: false, hasShisha: false, isHappyHours: false, smokingTimer: false });
+    setEditForm({ name: '', time: '', endTime: '', guests: 1, phone: '', comment: '', hasVR: false, hasShisha: false, isHappyHours: false, smokingTimer: false });
   };
 
   const handleToggleActive = async (booking: Booking) => {
@@ -887,6 +905,12 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     if (window.confirm('Вы уверены, что хотите удалить эту бронь?')) {
       await fetch(`${API_URL}/api/bookings/${id}`, { method: 'DELETE' });
       setBookings(prev => prev.filter(b => b.id !== id));
+      const bookingPrefix = `${id}_`;
+      const updatedNotified = new Set(
+        Array.from(notifiedEndingBookingsRef.current).filter(key => !key.startsWith(bookingPrefix))
+      );
+      notifiedEndingBookingsRef.current = updatedNotified;
+      saveNotifiedEndingBookings(updatedNotified);
     }
   };
 
@@ -910,6 +934,62 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   };
 
   const shouldBlinkHH = (b: Booking) => !!b.isHappyHours && isHHWarningWindow();
+
+  const parseTimeToDate = (time: string, baseDate: Date): Date | null => {
+    if (!time || !/^\d{2}:\d{2}$/.test(time)) return null;
+    const [hoursStr, minutesStr] = time.split(':');
+    const hours = Number(hoursStr);
+    const minutes = Number(minutesStr);
+    if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+    const parsed = new Date(baseDate);
+    parsed.setHours(hours, minutes, 0, 0);
+    return parsed;
+  };
+
+  const getBookingEndDate = (booking: Booking): Date | null => {
+    if (!booking.endTime) return null;
+    const now = getNow();
+    const endToday = parseTimeToDate(booking.endTime, now);
+    if (!endToday) return null;
+
+    const bookingStart = booking.time ? parseTimeToDate(booking.time, now) : null;
+    if (!bookingStart) return endToday;
+
+    // Если время "до" меньше времени начала, считаем, что бронь через полночь
+    if (endToday.getTime() <= bookingStart.getTime()) {
+      const result = new Date(endToday);
+      if (now.getTime() >= bookingStart.getTime()) {
+        result.setDate(result.getDate() + 1);
+      }
+      return result;
+    }
+
+    return endToday;
+  };
+
+  const getEndingSoonInfo = (booking: Booking): { minutesLeft: number; label: string } | null => {
+    const endDate = getBookingEndDate(booking);
+    if (!endDate) return null;
+    const diffMs = endDate.getTime() - getNow().getTime();
+    if (diffMs <= 0 || diffMs > 10 * 60 * 1000) return null;
+    const minutesLeft = Math.max(1, Math.ceil(diffMs / (60 * 1000)));
+    return { minutesLeft, label: `⏳ ВРЕМЯ ЗАКАНЧИВАЕТСЯ (${minutesLeft} мин)` };
+  };
+
+  const notifiedEndingBookingsRef = useRef<Set<string>>(
+    (() => {
+      try {
+        const stored = localStorage.getItem('booking_ending_notified');
+        return stored ? new Set(JSON.parse(stored)) : new Set();
+      } catch {
+        return new Set();
+      }
+    })()
+  );
+
+  const saveNotifiedEndingBookings = (keys: Set<string>) => {
+    localStorage.setItem('booking_ending_notified', JSON.stringify(Array.from(keys)));
+  };
 
   // ========== ЛОГИКА ТАЙМЕРА КУРЕНИЯ ==========
   
@@ -1091,6 +1171,71 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     return () => clearInterval(interval);
   }, []);
 
+  // Уведомление за 10 минут до окончания брони (поле "До времени")
+  useEffect(() => {
+    const checkBookingEndingAndNotify = async () => {
+      const notified = notifiedEndingBookingsRef.current;
+      const testTimeOverride = localStorage.getItem('appTimeOverride');
+
+      for (const booking of bookings) {
+        if (booking.branch !== currentBranch || !booking.endTime) continue;
+        const endingSoon = getEndingSoonInfo(booking);
+        if (!endingSoon) continue;
+
+        const notificationKey = `${booking.id}_${booking.endTime}`;
+        if (notified.has(notificationKey)) continue;
+
+        notified.add(notificationKey);
+        saveNotifiedEndingBookings(notified);
+
+        const table = tables.find(t => String(t.id) === String(booking.tableId));
+        const zoneName = table?.name || `Зона ${booking.tableId}`;
+
+        try {
+          const payload: any = {
+            branch: booking.branch,
+            zoneName,
+            guestName: booking.name,
+            endTime: booking.endTime,
+            minutesLeft: endingSoon.minutesLeft
+          };
+          if (testTimeOverride) {
+            payload.testDate = testTimeOverride;
+          }
+
+          const response = await fetch(`${API_URL}/api/telegram/notify-booking-ending`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          if (!response.ok) {
+            console.error('❌ Ошибка отправки уведомления о завершении времени брони');
+          }
+        } catch (error) {
+          console.error('❌ Ошибка отправки уведомления о завершении времени:', error);
+        }
+      }
+
+      const validPrefixes = new Set(bookings.map(b => `${b.id}_`));
+      const cleaned = new Set(
+        Array.from(notified).filter(key => {
+          for (const prefix of Array.from(validPrefixes)) {
+            if (key.startsWith(prefix)) return true;
+          }
+          return false;
+        })
+      );
+      if (cleaned.size !== notified.size) {
+        notifiedEndingBookingsRef.current = cleaned;
+        saveNotifiedEndingBookings(cleaned);
+      }
+    };
+
+    const interval = setInterval(checkBookingEndingAndNotify, 15 * 1000);
+    return () => clearInterval(interval);
+  }, [bookings, currentBranch, tables]);
+
   // ========== КОНЕЦ ЛОГИКИ ПРОВЕРКИ ЗАДАЧ ==========
 
   // Ежедневное уведомление в 18:50, если есть хотя бы одна HH-бронирование в текущем филиале
@@ -1146,6 +1291,14 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                   onChange={handleEditFormChange}
                   required
                   style={{ marginBottom: '4px' }}
+                />
+                <input
+                  name="endTime"
+                  type="time"
+                  value={editForm.endTime}
+                  onChange={handleEditFormChange}
+                  style={{ marginBottom: '4px' }}
+                  placeholder="До времени"
                 />
                 <div className="time-buttons">
                   {[
@@ -1656,6 +1809,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                   {currentBookings.filter(b => String(b.tableId) === String(table.id)).map((b) => {
                     const smokingTimerText = formatSmokingTimer(b);
                     const isTimerExpired = isSmokingTimerExpired(b);
+                    const endingSoonInfo = getEndingSoonInfo(b);
                     
                     return (
                 <div
@@ -1663,7 +1817,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                   draggable
                   onDragStart={() => handleDragStart(b)}
                   onClick={(e) => e.stopPropagation()}
-                  className={`booking-card ${b.isActive ? 'green' : 'red'} ${shouldHighlightHH(b) ? 'hh-active' : ''} ${shouldBlinkHH(b) ? 'hh-blink' : ''} ${isTimerExpired ? 'smoking-timer-expired' : ''}`}
+                  className={`booking-card ${b.isActive ? 'green' : 'red'} ${shouldHighlightHH(b) ? 'hh-active' : ''} ${shouldBlinkHH(b) ? 'hh-blink' : ''} ${isTimerExpired ? 'smoking-timer-expired' : ''} ${endingSoonInfo ? 'booking-ending-soon' : ''}`}
                     >
                       {/* Таймер курения в левом верхнем углу */}
                       {smokingTimerText && (
@@ -1671,7 +1825,10 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                           {smokingTimerText}
                         </div>
                       )}
-                      <div className="booking-time">{b.time}</div>
+                      <div className="booking-time">{b.time}{b.endTime ? ` - ${b.endTime}` : ''}</div>
+                      {endingSoonInfo && (
+                        <div className="booking-ending-warning">{endingSoonInfo.label}</div>
+                      )}
                       <div className="booking-name">{b.name}</div>
                       <div className="booking-guests">{b.guests} чел.</div>
                       {b.comment && <div className="booking-comment">💬 {b.comment}</div>}
@@ -1743,6 +1900,13 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                 value={quickForm.time}
                 onChange={handleQuickFormChange}
                 required
+              />
+              <input
+                name="endTime"
+                type="time"
+                value={quickForm.endTime}
+                onChange={handleQuickFormChange}
+                placeholder="До времени"
               />
               <div className="quick-time-buttons">
                 {[
