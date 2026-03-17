@@ -53,6 +53,15 @@ interface CurrentShift {
   lastUpdate: string;
 }
 
+interface WaitlistItem {
+  id: string;
+  name: string;
+  phone: string;
+  validUntil: string;
+  branch: 'МСК' | 'Полевая';
+  createdAt: string;
+}
+
 const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   // Переопределение времени приложения (для тестов): читаем из localStorage
   const getNow = () => {
@@ -82,6 +91,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     isHappyHours: false,
     smokingTimer: false, // галочка "МНЕ ТОЛЬКО ПОКУРИТЬ"
   });
+  const [quickTimeTarget, setQuickTimeTarget] = useState<'time' | 'endTime'>('time');
   // Состояние для контекстного меню
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -160,6 +170,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       isHappyHours: false,
       smokingTimer: false,
     });
+    setQuickTimeTarget('time');
   };
 
   // Начало перетаскивания формы
@@ -277,6 +288,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
         isHappyHours: false,
         smokingTimer: false,
       });
+      setQuickTimeTarget('time');
     } catch (error) {
       console.error('Error creating quick booking:', error);
     }
@@ -421,6 +433,23 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     };
   });
   const [draggedBooking, setDraggedBooking] = useState<Booking | null>(null);
+  const [waitlist, setWaitlist] = useState<WaitlistItem[]>(() => {
+    try {
+      const stored = localStorage.getItem('waitlist');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [waitlistForm, setWaitlistForm] = useState({
+    name: '',
+    phone: '',
+    validUntil: '',
+  });
+  const [draggedWaitlistItem, setDraggedWaitlistItem] = useState<WaitlistItem | null>(null);
+  const [isWaitlistVisible, setIsWaitlistVisible] = useState<boolean>(() => {
+    return localStorage.getItem('waitlistPanelVisible') !== 'false';
+  });
 
   // Состояние для редактирования брони
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
@@ -451,6 +480,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     isHappyHours: false,
     smokingTimer: false,
   });
+  const [editTimeTarget, setEditTimeTarget] = useState<'time' | 'endTime'>('time');
 
   // Полностью отключаем любое вмешательство в работу браузера
   useEffect(() => {
@@ -748,6 +778,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
 
   const handleEditBooking = (booking: Booking) => {
     setEditingBooking(booking);
+    setEditTimeTarget('time');
     // Проверяем, есть ли активный таймер курения
     const hasActiveTimer = booking.smokingTimerEnd && new Date(booking.smokingTimerEnd) > getNow();
     setEditForm({
@@ -855,11 +886,13 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     const updated = await res.json();
     setBookings(prev => prev.map(b => b.id === editingBooking.id ? { ...updated, isActive: b.isActive } : b));
     setEditingBooking(null);
+    setEditTimeTarget('time');
     setEditForm({ name: '', time: '', endTime: '', guests: 1, phone: '', comment: '', hasVR: false, hasShisha: false, isHappyHours: false, smokingTimer: false });
   };
 
   const handleCancelBookingEdit = () => {
     setEditingBooking(null);
+    setEditTimeTarget('time');
     setEditForm({ name: '', time: '', endTime: '', guests: 1, phone: '', comment: '', hasVR: false, hasShisha: false, isHappyHours: false, smokingTimer: false });
   };
 
@@ -880,6 +913,20 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   };
 
   const handleDragStart = (booking: Booking) => setDraggedBooking(booking);
+  const handleWaitlistDragStart = (item: WaitlistItem) => {
+    setDraggedWaitlistItem(item);
+  };
+
+  const handleWaitlistDragEnd = () => {
+    setDraggedWaitlistItem(null);
+  };
+
+  const formatNowToTime = (date: Date): string => {
+    const hh = String(date.getHours()).padStart(2, '0');
+    const mm = String(date.getMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
+  };
+
   const handleDrop = async (tableId: number) => {
     if (draggedBooking) {
       // Обновляем локальное состояние
@@ -903,6 +950,47 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       }
       
       setDraggedBooking(null);
+      return;
+    }
+
+    if (draggedWaitlistItem) {
+      const newBooking: Omit<Booking, 'id'> = {
+        name: draggedWaitlistItem.name,
+        time: formatNowToTime(getNow()),
+        endTime: draggedWaitlistItem.validUntil || undefined,
+        guests: 1,
+        phone: draggedWaitlistItem.phone,
+        source: 'Лично' as SourceType,
+        tableId,
+        branch: currentBranch,
+        isActive: false,
+        comment: 'Из листа ожидания',
+        hasVR: false,
+        hasShisha: false,
+        isHappyHours: false,
+      };
+
+      try {
+        await fetch(`${API_URL}/api/bookings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newBooking),
+        });
+
+        const bookingsRes = await fetch(`${API_URL}/api/bookings`);
+        const bookingsData = await bookingsRes.json();
+        setBookings(
+          bookingsData.map((b: any) => ({
+            ...b,
+            tableId: Number(b.tableId)
+          }))
+        );
+        setWaitlist(prev => prev.filter(item => item.id !== draggedWaitlistItem.id));
+      } catch (error) {
+        console.error('Error creating booking from waitlist:', error);
+      } finally {
+        setDraggedWaitlistItem(null);
+      }
     }
   };
 
@@ -1363,6 +1451,15 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   // Подсчёт активных и ожидающих бронирований
   const activeCount = bookings.filter(b => b.branch === currentBranch && b.isActive).length;
   const waitingCount = bookings.filter(b => b.branch === currentBranch && !b.isActive).length;
+  const currentWaitlist = waitlist.filter(item => item.branch === currentBranch);
+
+  useEffect(() => {
+    localStorage.setItem('waitlist', JSON.stringify(waitlist));
+  }, [waitlist]);
+
+  useEffect(() => {
+    localStorage.setItem('waitlistPanelVisible', String(isWaitlistVisible));
+  }, [isWaitlistVisible]);
 
   // Модальное окно редактирования брони - мемоизированное для предотвращения потери фокуса
   const EditBookingModal = useMemo(() => {
@@ -1391,6 +1488,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                   type="time"
                   value={editForm.time}
                   onChange={handleEditFormChange}
+                  onFocus={() => setEditTimeTarget('time')}
                   required
                   style={{ marginBottom: '4px' }}
                 />
@@ -1399,6 +1497,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                   type="time"
                   value={editForm.endTime}
                   onChange={handleEditFormChange}
+                  onFocus={() => setEditTimeTarget('endTime')}
                   style={{ marginBottom: '4px' }}
                   placeholder="До времени"
                 />
@@ -1421,8 +1520,10 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                     <button
                       key={time}
                       type="button"
-                      onClick={() => setEditForm(prev => ({ ...prev, time }))}
-                      className={`time-button ${editForm.time === time ? 'active' : ''}`}
+                      onClick={() =>
+                        setEditForm(prev => ({ ...prev, [editTimeTarget]: time }))
+                      }
+                      className={`time-button ${(editTimeTarget === 'endTime' ? editForm.endTime : editForm.time) === time ? 'active' : ''}`}
                     >
                       {label}
                     </button>
@@ -1446,10 +1547,12 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                     <button
                       key={time}
                       type="button"
-                      onClick={() => setEditForm(prev => ({ ...prev, time }))}
+                      onClick={() =>
+                        setEditForm(prev => ({ ...prev, [editTimeTarget]: time }))
+                      }
                       style={{
-                        background: editForm.time === time ? '#10b981' : '#f3f4f6',
-                        color: editForm.time === time ? 'white' : '#374151',
+                        background: (editTimeTarget === 'endTime' ? editForm.endTime : editForm.time) === time ? '#10b981' : '#f3f4f6',
+                        color: (editTimeTarget === 'endTime' ? editForm.endTime : editForm.time) === time ? 'white' : '#374151',
                         border: '1px solid #d1d5db',
                         borderRadius: '3px',
                         padding: '2px 6px',
@@ -1605,6 +1708,46 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       console.error('Error deleting table:', error);
       alert('Ошибка при удалении зоны');
     }
+  };
+
+  const handleWaitlistInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value, type } = e.target as HTMLInputElement;
+    setWaitlistForm(prev => ({
+      ...prev,
+      [name]: type === 'number' ? Number(value) : value,
+    }));
+  };
+
+  const handleAddWaitlistItem = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!waitlistForm.name.trim() || !waitlistForm.phone.trim() || !waitlistForm.validUntil.trim()) return;
+
+    const newItem: WaitlistItem = {
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      name: waitlistForm.name.trim(),
+      phone: waitlistForm.phone.trim(),
+      validUntil: waitlistForm.validUntil.trim(),
+      branch: currentBranch,
+      createdAt: new Date().toISOString(),
+    };
+
+    setWaitlist(prev => [newItem, ...prev]);
+    setWaitlistForm({
+      name: '',
+      phone: '',
+      validUntil: '',
+    });
+  };
+
+  const handleRemoveWaitlistItem = (id: string) => {
+    setWaitlist(prev => prev.filter(item => item.id !== id));
+  };
+
+  const handleClearWaitlist = () => {
+    if (!window.confirm(`Очистить весь лист ожидания для "${currentBranch}"?`)) return;
+    setWaitlist(prev => prev.filter(item => item.branch !== currentBranch));
   };
 
   // Получить активные вызовы для стола
@@ -1846,7 +1989,6 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
 
       {/* Основной контент */}
       <div className="content">
-        {/* Только канбан-доска, форма слева удалена */}
         <div className="kanban-area">
           <div className="kanban-board-content">
             {currentTables.map((table) => {
@@ -1961,6 +2103,102 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
             })}
             </div>
           </div>
+        {isWaitlistVisible ? (
+        <aside className="waitlist-panel">
+          <div className="waitlist-panel-header">
+            <h3>Лист ожидания</h3>
+            <div className="waitlist-header-actions">
+              <span className="waitlist-count">{currentWaitlist.length}</span>
+              <button
+                type="button"
+                className="waitlist-toggle-btn"
+                onClick={() => setIsWaitlistVisible(false)}
+              >
+                Скрыть
+              </button>
+            </div>
+          </div>
+          <form className="waitlist-form" onSubmit={handleAddWaitlistItem}>
+            <input
+              name="name"
+              value={waitlistForm.name}
+              onChange={handleWaitlistInputChange}
+              placeholder="Имя гостя"
+              required
+            />
+            <div className="waitlist-row">
+              <input
+                name="phone"
+                type="tel"
+                value={waitlistForm.phone}
+                onChange={handleWaitlistInputChange}
+                placeholder="Номер телефона"
+                required
+              />
+              <input
+                name="validUntil"
+                type="time"
+                value={waitlistForm.validUntil}
+                onChange={handleWaitlistInputChange}
+                title="До скольки актуально"
+                required
+              />
+            </div>
+            <button type="submit" className="waitlist-add-btn">
+              Добавить в лист
+            </button>
+          </form>
+          <div className="waitlist-items">
+            {currentWaitlist.length === 0 && (
+              <div className="waitlist-empty">Пока никого нет в ожидании</div>
+            )}
+            {currentWaitlist.map((item) => (
+              <div
+                className="waitlist-item"
+                key={item.id}
+                draggable
+                onDragStart={() => handleWaitlistDragStart(item)}
+                onDragEnd={handleWaitlistDragEnd}
+              >
+                <div className="waitlist-item-main">
+                  <div className="waitlist-item-name">{item.name}</div>
+                  <div className="waitlist-item-meta">
+                    📞 {item.phone}
+                  </div>
+                  <div className="waitlist-item-meta">
+                    ⏰ до {item.validUntil || 'не указано'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="waitlist-remove-btn"
+                  onClick={() => handleRemoveWaitlistItem(item.id)}
+                  title="Убрать из листа ожидания"
+                >
+                  ✖
+                </button>
+              </div>
+            ))}
+          </div>
+          {currentWaitlist.length > 0 && (
+            <button
+              type="button"
+              className="waitlist-clear-btn"
+              onClick={handleClearWaitlist}
+            >
+              Очистить лист
+            </button>
+          )}
+        </aside>
+        ) : (
+          <button
+            type="button"
+            className="waitlist-show-btn"
+            onClick={() => setIsWaitlistVisible(true)}
+          >
+            Лист ожидания ({currentWaitlist.length})
+          </button>
+        )}
       </div>
 
       {/* Модальное окно редактирования */}
@@ -2001,6 +2239,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                 type="time"
                 value={quickForm.time}
                 onChange={handleQuickFormChange}
+                onFocus={() => setQuickTimeTarget('time')}
                 required
               />
               <input
@@ -2008,6 +2247,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                 type="time"
                 value={quickForm.endTime}
                 onChange={handleQuickFormChange}
+                onFocus={() => setQuickTimeTarget('endTime')}
                 placeholder="До времени"
               />
               <div className="quick-time-buttons">
@@ -2019,8 +2259,10 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                   <button
                     key={time}
                     type="button"
-                    onClick={() => setQuickForm(prev => ({ ...prev, time }))}
-                    className={`quick-time-button ${quickForm.time === time ? 'active' : ''}`}
+                    onClick={() =>
+                      setQuickForm(prev => ({ ...prev, [quickTimeTarget]: time }))
+                    }
+                    className={`quick-time-button ${(quickTimeTarget === 'endTime' ? quickForm.endTime : quickForm.time) === time ? 'active' : ''}`}
                   >
                     {time.split(':')[0]}
                   </button>
