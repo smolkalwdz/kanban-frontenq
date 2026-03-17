@@ -39,6 +39,7 @@ interface Booking {
   hasShisha?: boolean;
   isHappyHours?: boolean;
   smokingTimerEnd?: string; // ISO дата окончания таймера курения
+  activeStartedAt?: string | null; // ISO дата начала активной брони
 }
 
 interface BoardProps {
@@ -433,14 +434,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     };
   });
   const [draggedBooking, setDraggedBooking] = useState<Booking | null>(null);
-  const [waitlist, setWaitlist] = useState<WaitlistItem[]>(() => {
-    try {
-      const stored = localStorage.getItem('waitlist');
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [waitlist, setWaitlist] = useState<WaitlistItem[]>([]);
   const [waitlistForm, setWaitlistForm] = useState({
     name: '',
     phone: '',
@@ -457,6 +451,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   // Состояние для автообновления
   const [isAutoRefreshEnabled, setIsAutoRefreshEnabled] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [, setActiveTimerTick] = useState(0);
   const [editForm, setEditForm] = useState<{
     name: string;
     time: string;
@@ -481,6 +476,13 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     smokingTimer: false,
   });
   const [editTimeTarget, setEditTimeTarget] = useState<'time' | 'endTime'>('time');
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setActiveTimerTick(prev => prev + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Полностью отключаем любое вмешательство в работу браузера
   useEffect(() => {
@@ -631,6 +633,11 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       const callsRes = await fetch(`${API_URL}/api/table-calls`);
       const callsData = await callsRes.json();
       setTableCalls(callsData);
+
+      // Загружаем лист ожидания (общий для всех)
+      const waitlistRes = await fetch(`${API_URL}/api/waitlist`);
+      const waitlistData = await waitlistRes.json();
+      setWaitlist(Array.isArray(waitlistData) ? waitlistData : []);
       
       setLastUpdate(new Date());
       console.log('✅ Данные обновлены:', new Date().toLocaleTimeString());
@@ -897,10 +904,13 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   };
 
   const handleToggleActive = async (booking: Booking) => {
+    const nextIsActive = !booking.isActive;
+    const activeStartedAt = nextIsActive ? getNow().toISOString() : null;
+
     await fetch(`${API_URL}/api/bookings/${booking.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...booking, isActive: !booking.isActive }),
+      body: JSON.stringify({ ...booking, isActive: nextIsActive, activeStartedAt }),
     });
     fetch(`${API_URL}/api/bookings`)
       .then(res => res.json())
@@ -985,6 +995,9 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
             tableId: Number(b.tableId)
           }))
         );
+        await fetch(`${API_URL}/api/waitlist/${draggedWaitlistItem.id}`, {
+          method: 'DELETE',
+        });
         setWaitlist(prev => prev.filter(item => item.id !== draggedWaitlistItem.id));
       } catch (error) {
         console.error('Error creating booking from waitlist:', error);
@@ -1168,6 +1181,25 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     const mins = String(remaining.minutes).padStart(2, '0');
     const secs = String(remaining.seconds).padStart(2, '0');
     return `🚬 ${mins}:${secs}`;
+  };
+
+  const formatActiveDuration = (booking: Booking): string | null => {
+    if (!booking.isActive || !booking.activeStartedAt) return null;
+
+    const startedAt = new Date(booking.activeStartedAt);
+    if (isNaN(startedAt.getTime())) return null;
+
+    const diffMs = Math.max(0, getNow().getTime() - startedAt.getTime());
+    const totalSeconds = Math.floor(diffMs / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    if (hours > 0) {
+      return `⏱ ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+
+    return `⏱ ${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   };
 
   // Уведомление о завершении таймера курения
@@ -1454,10 +1486,6 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   const currentWaitlist = waitlist.filter(item => item.branch === currentBranch);
 
   useEffect(() => {
-    localStorage.setItem('waitlist', JSON.stringify(waitlist));
-  }, [waitlist]);
-
-  useEffect(() => {
     localStorage.setItem('waitlistPanelVisible', String(isWaitlistVisible));
   }, [isWaitlistVisible]);
 
@@ -1720,34 +1748,57 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     }));
   };
 
-  const handleAddWaitlistItem = (e: React.FormEvent) => {
+  const handleAddWaitlistItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!waitlistForm.name.trim() || !waitlistForm.phone.trim() || !waitlistForm.validUntil.trim()) return;
-
-    const newItem: WaitlistItem = {
-      id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      name: waitlistForm.name.trim(),
-      phone: waitlistForm.phone.trim(),
-      validUntil: waitlistForm.validUntil.trim(),
-      branch: currentBranch,
-      createdAt: new Date().toISOString(),
-    };
-
-    setWaitlist(prev => [newItem, ...prev]);
-    setWaitlistForm({
-      name: '',
-      phone: '',
-      validUntil: '',
-    });
+    try {
+      const res = await fetch(`${API_URL}/api/waitlist`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: waitlistForm.name.trim(),
+          phone: waitlistForm.phone.trim(),
+          validUntil: waitlistForm.validUntil.trim(),
+          branch: currentBranch,
+        }),
+      });
+      if (!res.ok) {
+        throw new Error('Failed to add waitlist item');
+      }
+      const created = await res.json();
+      setWaitlist(prev => [created, ...prev]);
+      setWaitlistForm({
+        name: '',
+        phone: '',
+        validUntil: '',
+      });
+    } catch (error) {
+      console.error('Error adding waitlist item:', error);
+      alert('Не удалось добавить в лист ожидания');
+    }
   };
 
-  const handleRemoveWaitlistItem = (id: string) => {
-    setWaitlist(prev => prev.filter(item => item.id !== id));
+  const handleRemoveWaitlistItem = async (id: string) => {
+    try {
+      await fetch(`${API_URL}/api/waitlist/${id}`, { method: 'DELETE' });
+      setWaitlist(prev => prev.filter(item => item.id !== id));
+    } catch (error) {
+      console.error('Error removing waitlist item:', error);
+      alert('Не удалось удалить запись из листа ожидания');
+    }
   };
 
-  const handleClearWaitlist = () => {
+  const handleClearWaitlist = async () => {
     if (!window.confirm(`Очистить весь лист ожидания для "${currentBranch}"?`)) return;
-    setWaitlist(prev => prev.filter(item => item.branch !== currentBranch));
+    try {
+      await fetch(`${API_URL}/api/waitlist?branch=${encodeURIComponent(currentBranch)}`, {
+        method: 'DELETE',
+      });
+      setWaitlist(prev => prev.filter(item => item.branch !== currentBranch));
+    } catch (error) {
+      console.error('Error clearing waitlist:', error);
+      alert('Не удалось очистить лист ожидания');
+    }
   };
 
   // Получить активные вызовы для стола
@@ -2054,6 +2105,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                     const smokingTimerText = formatSmokingTimer(b);
                     const isTimerExpired = isSmokingTimerExpired(b);
                     const endingSoonInfo = getEndingSoonInfo(b);
+                    const activeDurationText = formatActiveDuration(b);
                     
                     return (
                 <div
@@ -2061,8 +2113,13 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                   draggable
                   onDragStart={() => handleDragStart(b)}
                   onClick={(e) => e.stopPropagation()}
-                  className={`booking-card ${b.isActive ? 'green' : 'red'} ${shouldHighlightHH(b) ? 'hh-active' : ''} ${shouldBlinkHH(b) ? 'hh-blink' : ''} ${isTimerExpired ? 'smoking-timer-expired' : ''} ${endingSoonInfo ? 'booking-ending-soon' : ''}`}
+                  className={`booking-card ${b.isActive ? 'green' : 'red'} ${shouldHighlightHH(b) ? 'hh-active' : ''} ${shouldBlinkHH(b) ? 'hh-blink' : ''} ${isTimerExpired ? 'smoking-timer-expired' : ''} ${endingSoonInfo ? 'booking-ending-soon' : ''} ${activeDurationText ? 'has-active-timer' : ''}`}
                     >
+                      {activeDurationText && (
+                        <div className="booking-active-timer">
+                          {activeDurationText}
+                        </div>
+                      )}
                       {/* Таймер курения в левом верхнем углу */}
                       {smokingTimerText && (
                         <div className={`smoking-timer ${isTimerExpired ? 'expired' : ''}`}>

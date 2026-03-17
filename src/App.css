@@ -612,6 +612,10 @@ body {
   box-shadow: 0 4px 12px rgba(245, 158, 11, 0.5);
 }
 
+.booking-card.has-active-timer.hh-active::after {
+  top: 26px;
+}
+
 /* Мерцание в окно предупреждения */
 @keyframes hhPulse {
   0%, 100% { box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.2) inset, 0 0 18px rgba(245, 158, 11, 0.35); }
@@ -1891,6 +1895,22 @@ input:focus, select:focus {
   z-index: 10;
   white-space: nowrap;
   animation: timerPulse 2s ease-in-out infinite;
+}
+
+.booking-active-timer {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: linear-gradient(135deg, #0f172a, #1e293b);
+  color: white;
+  font-weight: 900;
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  letter-spacing: 0.3px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.45);
+  z-index: 10;
+  white-space: nowrap;
 }
 
 /* Анимация пульсации таймера */
