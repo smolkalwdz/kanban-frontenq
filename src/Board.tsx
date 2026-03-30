@@ -63,6 +63,16 @@ interface WaitlistItem {
   createdAt: string;
 }
 
+interface TriggeredTaskNotification {
+  id: string;
+  title: string;
+  message: string;
+  branch: string;
+  scheduledTime: string;
+}
+
+const TASK_NOTIFICATION_TEST_STORAGE_KEY = 'taskNotificationTestPayload';
+
 const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   // Переопределение времени приложения (для тестов): читаем из localStorage
   const getNow = () => {
@@ -476,6 +486,8 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     smokingTimer: false,
   });
   const [editTimeTarget, setEditTimeTarget] = useState<'time' | 'endTime'>('time');
+  const [taskNotificationQueue, setTaskNotificationQueue] = useState<TriggeredTaskNotification[]>([]);
+  const [activeTaskNotification, setActiveTaskNotification] = useState<TriggeredTaskNotification | null>(null);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -1306,6 +1318,22 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
         
         if (response.ok) {
           const result = await response.json();
+          const successfulTaskNotifications: TriggeredTaskNotification[] = Array.isArray(result.results)
+            ? result.results
+                .filter((r: any) => r?.success)
+                .map((r: any) => ({
+                  id: `${r.taskId}_${r.branch || 'unknown'}_${r.scheduledTime || 'time'}`,
+                  title: String(r.taskTitle || `Задача ${r.taskId}`),
+                  message: String(r.taskMessage || ''),
+                  branch: String(r.branch || ''),
+                  scheduledTime: String(r.scheduledTime || '')
+                }))
+            : [];
+
+          if (successfulTaskNotifications.length > 0) {
+            setTaskNotificationQueue(prev => [...prev, ...successfulTaskNotifications]);
+          }
+
           if (result.checked > 0) {
             console.log(`📋 Проверено задач: ${result.checked}`);
             result.results.forEach((r: any) => {
@@ -1330,6 +1358,33 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (activeTaskNotification || taskNotificationQueue.length === 0) return;
+    setActiveTaskNotification(taskNotificationQueue[0]);
+    setTaskNotificationQueue(prev => prev.slice(1));
+  }, [activeTaskNotification, taskNotificationQueue]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(TASK_NOTIFICATION_TEST_STORAGE_KEY);
+      if (!raw) return;
+
+      const parsed = JSON.parse(raw);
+      const testNotification: TriggeredTaskNotification = {
+        id: String(parsed?.id || `test_${Date.now()}`),
+        title: String(parsed?.title || 'ТЕСТОВОЕ УВЕДОМЛЕНИЕ'),
+        message: String(parsed?.message || 'Проверка отображения уведомления'),
+        branch: String(parsed?.branch || currentBranch),
+        scheduledTime: String(parsed?.scheduledTime || '')
+      };
+
+      setTaskNotificationQueue(prev => [...prev, testNotification]);
+      localStorage.removeItem(TASK_NOTIFICATION_TEST_STORAGE_KEY);
+    } catch (error) {
+      localStorage.removeItem(TASK_NOTIFICATION_TEST_STORAGE_KEY);
+    }
+  }, [currentBranch]);
 
   // Уведомление за 10 минут до окончания брони (поле "До времени")
   useEffect(() => {
@@ -2257,6 +2312,29 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
           </button>
         )}
       </div>
+
+      {/* Уведомление о регулярной задаче */}
+      {activeTaskNotification && (
+        <div className="task-notification-overlay">
+          <div className="task-notification-card">
+            <div className="task-notification-label">УВЕДОМЛЕНИЕ</div>
+            <div className="task-notification-title">{activeTaskNotification.title}</div>
+            <div className="task-notification-message">
+              {activeTaskNotification.message || 'Выполнить задачу по регламенту'}
+            </div>
+            <div className="task-notification-meta">
+              {activeTaskNotification.branch} • {activeTaskNotification.scheduledTime}
+            </div>
+            <button
+              type="button"
+              className="task-notification-done-btn"
+              onClick={() => setActiveTaskNotification(null)}
+            >
+              ВЫПОЛНЕНО
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Модальное окно редактирования */}
       {EditBookingModal}

@@ -41,6 +41,8 @@ interface AdminPanelProps {
   onBack: () => void;
 }
 
+const TASK_NOTIFICATION_TEST_STORAGE_KEY = 'taskNotificationTestPayload';
+
 const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   // Отладка API URL
   console.log('🔍 AdminPanel API_URL:', API_URL);
@@ -386,6 +388,22 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     } finally {
       setSendingZoneId(null);
     }
+  };
+
+  const handleTestTaskNotification = () => {
+    const now = getNow();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const payload = {
+      id: `manual_test_${Date.now()}`,
+      title: 'ОБХОД ЗАЛА',
+      message: 'ПРОВЕРКА ЧИСТОТЫ ЗОН / ЧАЙНОЙ ЗОНЫ / ДОПРОДАЖА',
+      branch: currentBranch,
+      scheduledTime: `${hh}:${mm}`
+    };
+
+    localStorage.setItem(TASK_NOTIFICATION_TEST_STORAGE_KEY, JSON.stringify(payload));
+    onBack();
   };
 
   return (
@@ -1089,24 +1107,41 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
           <div className="admin-form-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h3>📋 Управление задачами</h3>
-              <button 
-                onClick={() => {
-                  setIsAddingTask(true);
-                  setTaskForm({ title: '', message: '', scheduledTime: '', branch: 'МСК', isRecurring: false });
-                }}
-                style={{
-                  background: 'linear-gradient(135deg, #10b981, #34d399)',
-                  color: 'white',
-                  border: 'none',
-                  padding: '10px 20px',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontWeight: '600',
-                  fontSize: '14px'
-                }}
-              >
-                ➕ Добавить задачу
-              </button>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <button
+                  onClick={handleTestTaskNotification}
+                  style={{
+                    background: 'linear-gradient(135deg, #2563eb, #3b82f6)',
+                    color: 'white',
+                    border: 'none',
+                    padding: '10px 20px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontWeight: '700',
+                    fontSize: '14px'
+                  }}
+                >
+                  🧪 Тест уведомления
+                </button>
+                <button 
+                  onClick={() => {
+                    setIsAddingTask(true);
+                    setTaskForm({ title: '', message: '', scheduledTime: '', branch: 'МСК', isRecurring: false });
+                  }}
+                  style={{
+                    background: 'linear-gradient(135deg, #10b981, #34d399)',
+                    color: 'white',
+                    border: 'none',
+                    padding: '10px 20px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontWeight: '600',
+                    fontSize: '14px'
+                  }}
+                >
+                  ➕ Добавить задачу
+                </button>
+              </div>
             </div>
 
             {/* Форма добавления/редактирования задачи */}
