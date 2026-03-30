@@ -2152,6 +2152,96 @@ input:focus, select:focus {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.7; transform: scale(0.98); }
 }
+
+/* ========== УВЕДОМЛЕНИЕ О РЕГУЛЯРНОЙ ЗАДАЧЕ ========== */
+.task-notification-overlay {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 8px;
+  display: flex;
+  justify-content: center;
+  z-index: 15000;
+  pointer-events: none;
+}
+
+.task-notification-card {
+  pointer-events: auto;
+  width: min(980px, calc(100vw - 24px));
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.97) 0%, rgba(30, 41, 59, 0.96) 50%, rgba(30, 64, 175, 0.95) 100%);
+  border: 3px solid #facc15;
+  border-radius: 14px;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.55);
+  padding: 14px 20px;
+  text-align: center;
+  color: #fff;
+  animation: taskNotificationPop 0.2s ease-out;
+}
+
+.task-notification-label {
+  font-size: 36px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 1.4px;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  color: #facc15;
+  text-shadow: 0 2px 10px rgba(250, 204, 21, 0.55);
+}
+
+.task-notification-title {
+  font-size: 32px;
+  font-weight: 900;
+  line-height: 1.1;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  color: #38bdf8;
+  text-shadow: 0 2px 10px rgba(56, 189, 248, 0.4);
+}
+
+.task-notification-message {
+  font-size: 21px;
+  font-weight: 900;
+  line-height: 1.25;
+  margin-bottom: 6px;
+  color: #ffffff;
+}
+
+.task-notification-meta {
+  font-size: 15px;
+  opacity: 0.95;
+  margin-bottom: 10px;
+  font-weight: 800;
+  color: #fef08a;
+}
+
+.task-notification-done-btn {
+  background: linear-gradient(135deg, #22c55e, #16a34a) !important;
+  border: 2px solid #dcfce7 !important;
+  color: #ffffff !important;
+  font-size: 22px !important;
+  font-weight: 900 !important;
+  padding: 10px 24px !important;
+  border-radius: 10px !important;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+
+.task-notification-done-btn:hover {
+  background: #15803d !important;
+  transform: translateY(-1px) scale(1.02);
+}
+
+@keyframes taskNotificationPop {
+  from {
+    transform: translateY(18px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
 @media (max-width: 768px) {
   .call-indicator {
     padding: 6px 10px;
