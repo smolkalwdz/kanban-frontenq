@@ -1,0 +1,464 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&display=swap');
+
+.table-call-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #111111;
+  padding: 16px;
+  font-family: 'Montserrat', sans-serif;
+  color: #ffffff;
+}
+
+.table-call-card {
+  background: #1a1a1a;
+  border-radius: 20px;
+  padding: 17px 14px;
+  max-width: 420px;
+  width: 100%;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  animation: slideUp 0.45s ease-out;
+  border: 1px solid #333;
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.table-call-header {
+  text-align: center;
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #333;
+}
+
+.branch-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: #888;
+  margin: 0 0 8px 0;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.table-name {
+  font-size: 32px;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.table-call-logo {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 11px;
+}
+
+.table-call-logo img {
+  width: 360px;
+  height: auto;
+  object-fit: contain;
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none;
+  /* Добавляем контраст для темного фона */
+  filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.3)) drop-shadow(0 0 20px rgba(255, 255, 255, 0.2));
+}
+
+.call-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.call-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 20px 24px;
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-family: 'Montserrat', sans-serif;
+}
+
+.call-button.waiter {
+  background: #2a2a2a;
+  color: #fff;
+  border: 1px solid #444;
+}
+.call-button.waiter:hover {
+  background: #333;
+  border-color: #666;
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
+}
+
+.call-button.hookah-master {
+  background: #2a2a2a;
+  color: #fff;
+  border: 1px solid #444;
+}
+.call-button.hookah-master:hover {
+  background: #333;
+  border-color: #666;
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
+}
+
+.call-button.gamemaster {
+  background: #2a2a2a;
+  color: #fff;
+  border: 1px solid #444;
+}
+.call-button.gamemaster:hover {
+  background: #333;
+  border-color: #666;
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
+}
+
+.call-button.games-link {
+  background: #2a2a2a;
+  color: #fff;
+  border: 1px solid #444;
+  text-decoration: none;
+}
+.call-button.games-link:hover {
+  background: #333;
+  border-color: #666;
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
+}
+
+.call-button.food-order {
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.call-button.food-order:hover {
+  background: linear-gradient(135deg, #f97316, #ea580c);
+  box-shadow: 0 0 15px rgba(249, 115, 22, 0.35);
+}
+
+.call-icon { font-size: 24px; }
+.call-text { flex: 1; text-align: left; }
+
+.food-partners-section {
+  margin-bottom: 16px;
+  padding: 18px;
+  border-radius: 16px;
+  background: #141414;
+  border: 1px solid #2d2d2d;
+}
+
+.food-partners-header {
+  margin-bottom: 14px;
+}
+
+.food-partners-header h3 {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.food-partners-header p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #9ca3af;
+}
+
+.food-partners-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.food-partner-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 14px;
+  background: #1d1d1d;
+  border: 1px solid #303030;
+}
+
+.food-partner-content h4 {
+  margin: 0 0 6px 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.food-partner-content p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #d1d5db;
+}
+
+.food-partner-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.food-partner-label {
+  font-size: 12px;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.food-partner-code {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(249, 115, 22, 0.12);
+  border: 1px solid rgba(249, 115, 22, 0.3);
+  color: #fdba74;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.food-partner-note {
+  margin-top: 10px !important;
+  color: #9ca3af !important;
+  font-size: 13px !important;
+}
+
+.food-order-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #fff;
+  color: #111;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.food-order-link:hover {
+  background: #f3f4f6;
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.25);
+}
+
+.food-call-link {
+  background: transparent;
+  color: #fff;
+  border: 1px solid #4b5563;
+}
+
+.food-call-link:hover {
+  background: #202020;
+  color: #fff;
+}
+
+.message {
+  padding: 14px 20px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  animation: fadeIn 0.3s ease-out;
+  margin-bottom: 16px;
+}
+.message.success { background: rgba(16, 185, 129, 0.1); color: #34d399; border: 1px solid #059669; }
+.message.error { background: rgba(239, 68, 68, 0.1); color: #f87171; border: 1px solid #dc2626; }
+
+.loading-indicator {
+  display: flex; align-items: center; justify-content: center; gap: 12px; padding: 16px; color: #888; font-weight: 600; font-size: 14px;
+}
+.spinner {
+  width: 20px; height: 20px; border: 2px solid #333; border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite;
+}
+
+.table-call-footer {
+  text-align: center; color: #555; font-size: 12px; padding-top: 20px; border-top: 1px solid #333; line-height: 1.5;
+}
+
+/* ========================================= */
+/* НОВЫЙ ДИЗАЙН МОДАЛЬНОГО ОКНА (Glassmorphism) */
+/* ========================================= */
+
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 20px;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.modal-content {
+  background: rgba(30, 30, 30, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
+  padding: 30px;
+  width: 100%;
+  max-width: 360px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+  animation: modalPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  position: relative;
+}
+
+@keyframes modalPop {
+  from { opacity: 0; transform: scale(0.9) translateY(20px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.modal-header h3 {
+  margin: 0;
+  color: #fff;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.close-button {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: #fff;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.close-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: rotate(90deg);
+}
+
+.modal-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modal-option-btn {
+  background: linear-gradient(145deg, #2a2a2a, #222);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  color: #fff;
+  padding: 16px 20px;
+  border-radius: 16px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.modal-option-btn:hover {
+  background: linear-gradient(145deg, #333, #2a2a2a);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 15px rgba(0,0,0,0.2);
+}
+
+.modal-option-btn:active {
+  transform: translateY(0);
+}
+
+.modal-input-container {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  background: #111;
+  padding: 4px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.modal-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #fff;
+  padding: 12px 16px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 14px;
+}
+
+.modal-input:focus {
+  outline: none;
+}
+
+.modal-submit-btn {
+  background: #fff;
+  color: #000;
+  border: none;
+  width: 40px;
+  border-radius: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  transition: all 0.2s;
+}
+
+.modal-submit-btn:hover:not(:disabled) {
+  background: #e0e0e0;
+  transform: scale(1.05);
+}
+
+.modal-submit-btn:disabled {
+  background: #333;
+  color: #555;
+  cursor: not-allowed;
+}
+
+/* Адаптивность */
+@media (max-width: 600px) {
+  .table-call-card { padding: 24px 20px; }
+  .modal-content { width: 90%; padding: 24px; }
+  .branch-name { font-size: 16px; }
+  .table-name { font-size: 24px; }
+  .call-button { padding: 18px 20px; font-size: 14px; }
+  .food-partners-section { padding: 16px; }
+  .food-partner-card { padding: 14px; }
+}
