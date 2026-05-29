@@ -9,15 +9,117 @@ interface TableCallProps {
 
 type CallType = 'waiter' | 'hookah' | 'gamemaster';
 
+interface FoodPartner {
+  name: string;
+  offer: string;
+  promoCode: string;
+  note?: string;
+  buttonLabel: string;
+  url: string;
+  phone?: string;
+}
+
 const TableCall: React.FC<TableCallProps> = ({ branch, tableId }) => {
   const logoSrc = `${process.env.PUBLIC_URL}/logo2.png`;
+  const isMoscowBranch = branch === 'МСК';
+  const isPolevayaBranch = branch === 'Полевая';
+  const hasFoodPartners = isMoscowBranch || isPolevayaBranch;
   const [tableName, setTableName] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   
   // Состояние модального окна
   const [showModal, setShowModal] = useState(false);
+  const [showFoodPartners, setShowFoodPartners] = useState(false);
   const [customComment, setCustomComment] = useState('');
+
+  const deliveryAddress = isMoscowBranch ? 'Московское шоссе, 43' : isPolevayaBranch ? 'Полевая, 72' : '';
+
+  const foodPartners: FoodPartner[] = isPolevayaBranch
+    ? [
+        {
+          name: 'Додо Пицца',
+          offer: 'Скидка 15% на заказ.',
+          promoCode: 'Dungeon3',
+          note: 'Укажите адрес доставки: Полевая, 72.',
+          buttonLabel: 'Заказать в Додо',
+          url: 'https://dodopizza.ru/',
+        },
+        {
+          name: 'Квадратик',
+          offer: 'Скидка 10% на заказ.',
+          promoCode: 'Dungeon',
+          buttonLabel: 'Заказать в Квадратик',
+          url: 'https://kpizza.ru/',
+        },
+        {
+          name: 'О! Суши',
+          offer: 'Жареный ролл в подарок при заказе от 1500 рублей.',
+          promoCode: 'SAM1DUNG',
+          buttonLabel: 'Заказать в О! Суши',
+          url: 'https://taplink.io/id:014602267:e3b8',
+        },
+        {
+          name: 'Гусь Бургер',
+          offer: 'Скидка 10% на заказ.',
+          promoCode: 'DUNGEON',
+          note: 'Доставка оплачивается отдельно.',
+          buttonLabel: 'Заказать в Гусь Бургер',
+          url: 'https://gusburger.ru/',
+        },
+        {
+          name: 'Капибара',
+          offer: 'Доставка суши и роллов. Скидка 15% при заказе от 1490 рублей.',
+          promoCode: 'LOUNGE',
+          note: 'Адрес партнёра: ул. Мичурина, д. 149.',
+          buttonLabel: 'Заказать в Капибара',
+          url: 'https://onelink.to/5rzxc5',
+          phone: '+79991188111',
+        },
+      ]
+    : isMoscowBranch
+      ? [
+          {
+            name: 'Додо Пицца',
+            offer: 'Скидка 15% на заказ.',
+            promoCode: 'Dungeon2',
+            note: 'Укажите адрес доставки: Московское шоссе, 43.',
+            buttonLabel: 'Заказать в Додо',
+            url: 'https://dodopizza.ru/',
+          },
+          {
+            name: 'Квадратик',
+            offer: 'Скидка 10% на заказ.',
+            promoCode: 'Dungeon',
+            buttonLabel: 'Заказать в Квадратик',
+            url: 'https://kpizza.ru/',
+          },
+          {
+            name: 'О! Суши',
+            offer: 'Жареный ролл в подарок при заказе от 1500 рублей.',
+            promoCode: 'SAM1DUNG',
+            buttonLabel: 'Заказать в О! Суши',
+            url: 'https://taplink.io/id:014602267:e3b8',
+          },
+          {
+            name: 'Гусь Бургер',
+            offer: 'Скидка 10% на заказ.',
+            promoCode: 'DUNGEON',
+            note: 'Доставка оплачивается отдельно.',
+            buttonLabel: 'Заказать в Гусь Бургер',
+            url: 'https://gusburger.ru/',
+          },
+          {
+            name: 'Капибара',
+            offer: 'Доставка суши и роллов. Скидка 15% при заказе от 1490 рублей.',
+            promoCode: 'LOUNGE',
+            note: 'Адрес партнёра: ул. Мичурина, д. 149.',
+            buttonLabel: 'Заказать в Капибара',
+            url: 'https://onelink.to/5rzxc5',
+            phone: '+79991188111',
+          },
+        ]
+      : [];
 
   useEffect(() => {
     // Загружаем информацию о столе
@@ -120,6 +222,19 @@ const TableCall: React.FC<TableCallProps> = ({ branch, tableId }) => {
             <span className="call-text">Вызвать СОТРУДНИКА</span>
           </button>
 
+          {hasFoodPartners && (
+            <button
+              className="call-button food-order"
+              onClick={() => setShowFoodPartners(prev => !prev)}
+              type="button"
+            >
+              <span className="call-icon">🍔</span>
+              <span className="call-text">
+                {showFoodPartners ? 'СКРЫТЬ ПАРТНЕРОВ' : 'ЗАКАЗАТЬ ЕДУ'}
+              </span>
+            </button>
+          )}
+
           <a 
             href="https://vk.com/@dungeon_samara-vo-chto-poigrat-v-taim-kafe-dungeon" 
             target="_blank" 
@@ -151,6 +266,51 @@ const TableCall: React.FC<TableCallProps> = ({ branch, tableId }) => {
             <span className="call-text">6 КАЛЬЯН БЕСПЛАТНО</span>
           </a>
         </div>
+
+        {hasFoodPartners && showFoodPartners && (
+          <div className="food-partners-section">
+            <div className="food-partners-header">
+              <h3>Партнеры доставки</h3>
+              <p>Выберите заведение, оформите заказ и укажите адрес: {deliveryAddress}.</p>
+            </div>
+
+            <div className="food-partners-list">
+              {foodPartners.map((partner) => (
+                <div key={partner.name} className="food-partner-card">
+                  <div className="food-partner-content">
+                    <h4>{partner.name}</h4>
+                    <p>{partner.offer}</p>
+                    <div className="food-partner-meta">
+                      <span className="food-partner-label">Промокод:</span>
+                      <span className="food-partner-code">{partner.promoCode}</span>
+                    </div>
+                    {partner.note && (
+                      <p className="food-partner-note">{partner.note}</p>
+                    )}
+                  </div>
+
+                  <a
+                    href={partner.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="food-order-link"
+                  >
+                    {partner.buttonLabel}
+                  </a>
+
+                  {partner.phone && (
+                    <a
+                      href={`tel:${partner.phone}`}
+                      className="food-order-link food-call-link"
+                    >
+                      Позвонить
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {message && (
           <div className={`message ${message.type}`}>

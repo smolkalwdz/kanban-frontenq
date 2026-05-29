@@ -139,8 +139,142 @@
   box-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
 }
 
+.call-button.food-order {
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.call-button.food-order:hover {
+  background: linear-gradient(135deg, #f97316, #ea580c);
+  box-shadow: 0 0 15px rgba(249, 115, 22, 0.35);
+}
+
 .call-icon { font-size: 24px; }
 .call-text { flex: 1; text-align: left; }
+
+.food-partners-section {
+  margin-bottom: 16px;
+  padding: 18px;
+  border-radius: 16px;
+  background: #141414;
+  border: 1px solid #2d2d2d;
+}
+
+.food-partners-header {
+  margin-bottom: 14px;
+}
+
+.food-partners-header h3 {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.food-partners-header p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #9ca3af;
+}
+
+.food-partners-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.food-partner-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 14px;
+  background: #1d1d1d;
+  border: 1px solid #303030;
+}
+
+.food-partner-content h4 {
+  margin: 0 0 6px 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.food-partner-content p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #d1d5db;
+}
+
+.food-partner-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.food-partner-label {
+  font-size: 12px;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.food-partner-code {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(249, 115, 22, 0.12);
+  border: 1px solid rgba(249, 115, 22, 0.3);
+  color: #fdba74;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.food-partner-note {
+  margin-top: 10px !important;
+  color: #9ca3af !important;
+  font-size: 13px !important;
+}
+
+.food-order-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #fff;
+  color: #111;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.food-order-link:hover {
+  background: #f3f4f6;
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.25);
+}
+
+.food-call-link {
+  background: transparent;
+  color: #fff;
+  border: 1px solid #4b5563;
+}
+
+.food-call-link:hover {
+  background: #202020;
+  color: #fff;
+}
 
 .message {
   padding: 14px 20px;
@@ -325,4 +459,6 @@
   .branch-name { font-size: 16px; }
   .table-name { font-size: 24px; }
   .call-button { padding: 18px 20px; font-size: 14px; }
+  .food-partners-section { padding: 16px; }
+  .food-partner-card { padding: 14px; }
 }
