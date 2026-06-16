@@ -63,6 +63,23 @@ interface WaitlistItem {
   createdAt: string;
 }
 
+interface CrmLeadCard {
+  id: string;
+  branch: 'МСК' | 'Полевая';
+  name: string;
+  phone: string;
+  guests: number;
+  date?: string;
+  time: string;
+  endTime?: string;
+  zoneHint?: string;
+  zoneType?: string;
+  hasShisha: boolean;
+  comment?: string;
+  leadUrl: string | null;
+  createdAt: string;
+}
+
 interface TriggeredTaskNotification {
   id: string;
   title: string;
@@ -451,6 +468,8 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     validUntil: '',
   });
   const [draggedWaitlistItem, setDraggedWaitlistItem] = useState<WaitlistItem | null>(null);
+  const [crmLeads, setCrmLeads] = useState<CrmLeadCard[]>([]);
+  const [draggedCrmLead, setDraggedCrmLead] = useState<CrmLeadCard | null>(null);
   const [isWaitlistVisible, setIsWaitlistVisible] = useState<boolean>(() => {
     return localStorage.getItem('waitlistPanelVisible') !== 'false';
   });
@@ -650,7 +669,12 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       const waitlistRes = await fetch(`${API_URL}/api/waitlist`);
       const waitlistData = await waitlistRes.json();
       setWaitlist(Array.isArray(waitlistData) ? waitlistData : []);
-      
+
+      // Загружаем входящие заявки из amoCRM
+      const crmLeadsRes = await fetch(`${API_URL}/api/crm-leads`);
+      const crmLeadsData = await crmLeadsRes.json();
+      setCrmLeads(Array.isArray(crmLeadsData) ? crmLeadsData : []);
+
       setLastUpdate(new Date());
       console.log('✅ Данные обновлены:', new Date().toLocaleTimeString());
     } catch (error) {
@@ -943,6 +967,14 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     setDraggedWaitlistItem(null);
   };
 
+  const handleCrmLeadDragStart = (item: CrmLeadCard) => {
+    setDraggedCrmLead(item);
+  };
+
+  const handleCrmLeadDragEnd = () => {
+    setDraggedCrmLead(null);
+  };
+
   const formatNowToTime = (date: Date): string => {
     const hh = String(date.getHours()).padStart(2, '0');
     const mm = String(date.getMinutes()).padStart(2, '0');
@@ -1015,6 +1047,52 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
         console.error('Error creating booking from waitlist:', error);
       } finally {
         setDraggedWaitlistItem(null);
+      }
+    }
+
+    if (draggedCrmLead) {
+      const newBooking: Omit<Booking, 'id'> = {
+        name: draggedCrmLead.name,
+        time: draggedCrmLead.time || formatNowToTime(getNow()),
+        endTime: draggedCrmLead.endTime || undefined,
+        guests: draggedCrmLead.guests || 1,
+        phone: draggedCrmLead.phone,
+        source: 'Онлайн' as SourceType,
+        tableId,
+        branch: currentBranch,
+        isActive: false,
+        comment: [draggedCrmLead.comment, draggedCrmLead.zoneHint ? `Зона (amo): ${draggedCrmLead.zoneHint}` : null]
+          .filter(Boolean)
+          .join('\n') || undefined,
+        hasVR: false,
+        hasShisha: draggedCrmLead.hasShisha,
+        isHappyHours: false,
+      };
+
+      try {
+        await fetch(`${API_URL}/api/bookings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newBooking),
+        });
+
+        const bookingsRes = await fetch(`${API_URL}/api/bookings`);
+        const bookingsData = await bookingsRes.json();
+        setBookings(
+          bookingsData.map((b: any) => ({
+            ...b,
+            tableId: Number(b.tableId)
+          }))
+        );
+
+        await fetch(`${API_URL}/api/crm-leads/${draggedCrmLead.id}`, {
+          method: 'DELETE',
+        });
+        setCrmLeads(prev => prev.filter(item => item.id !== draggedCrmLead.id));
+      } catch (error) {
+        console.error('Error creating booking from CRM lead:', error);
+      } finally {
+        setDraggedCrmLead(null);
       }
     }
   };
@@ -1539,6 +1617,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   const activeCount = bookings.filter(b => b.branch === currentBranch && b.isActive).length;
   const waitingCount = bookings.filter(b => b.branch === currentBranch && !b.isActive).length;
   const currentWaitlist = waitlist.filter(item => item.branch === currentBranch);
+  const currentCrmLeads = crmLeads.filter(item => item.branch === currentBranch);
 
   useEffect(() => {
     localStorage.setItem('waitlistPanelVisible', String(isWaitlistVisible));
@@ -2311,6 +2390,53 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
             Лист ожидания ({currentWaitlist.length})
           </button>
         )}
+        <aside className="waitlist-panel crm-leads-panel">
+          <div className="waitlist-panel-header">
+            <h3>Заявки CRM</h3>
+            <span className="waitlist-count">{currentCrmLeads.length}</span>
+          </div>
+          <div className="waitlist-items">
+            {currentCrmLeads.length === 0 && (
+              <div className="waitlist-empty">Нет новых заявок из amoCRM</div>
+            )}
+            {currentCrmLeads.map((item) => (
+              <div
+                key={item.id}
+                className="waitlist-item"
+                draggable
+                onDragStart={() => handleCrmLeadDragStart(item)}
+                onDragEnd={handleCrmLeadDragEnd}
+              >
+                <div className="waitlist-item-main">
+                  <div className="waitlist-item-name">{item.name}</div>
+                  <div className="waitlist-item-meta">
+                    {item.date ? `${item.date} ` : ''}{item.time}{item.endTime ? ` – ${item.endTime}` : ''} · {item.guests} гостей
+                  </div>
+                  {item.zoneHint && (
+                    <div className="waitlist-item-meta">Зона: {item.zoneHint}</div>
+                  )}
+                  {item.zoneType && (
+                    <div className="waitlist-item-meta">Тип зоны: {item.zoneType}</div>
+                  )}
+                  {item.phone && (
+                    <div className="waitlist-item-meta">{item.phone}</div>
+                  )}
+                  {item.hasShisha && (
+                    <div className="waitlist-item-meta">🪔 Кальян</div>
+                  )}
+                  {item.comment && (
+                    <div className="waitlist-item-meta">{item.comment}</div>
+                  )}
+                  {item.leadUrl && (
+                    <a href={item.leadUrl} target="_blank" rel="noreferrer" className="waitlist-item-meta">
+                      Открыть в amoCRM
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </aside>
       </div>
 
       {/* Уведомление о регулярной задаче */}
