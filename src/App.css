@@ -296,6 +296,7 @@ body {
 }
 
 .waitlist-item {
+  position: relative;
   border: 1px solid #dbeafe;
   background: #eff6ff;
   border-radius: 8px;

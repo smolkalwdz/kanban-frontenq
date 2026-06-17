@@ -1833,6 +1833,17 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     handleDelete(id);
   };
 
+  const handleDeleteCrmLead = async (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await fetch(`${API_URL}/api/crm-leads/${id}`, { method: 'DELETE' });
+      setCrmLeads(prev => prev.filter(item => item.id !== id));
+    } catch (err) {
+      console.error('Ошибка удаления заявки CRM:', err);
+    }
+  };
+
   // Функция очистки всех броней в текущем филиале
   const handleClearAllBookings = async () => {
     if (!window.confirm(`Вы уверены, что хотите удалить ВСЕ брони в филиале "${currentBranch}"? Это действие нельзя отменить!`)) {
@@ -2407,6 +2418,14 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                 onDragStart={() => handleCrmLeadDragStart(item)}
                 onDragEnd={handleCrmLeadDragEnd}
               >
+                <button
+                  type="button"
+                  onClick={(e) => handleDeleteCrmLead(item.id, e)}
+                  className="action-btn delete-btn"
+                  style={{ position: 'absolute', top: '4px', right: '4px' }}
+                >
+                  ✕
+                </button>
                 <div className="waitlist-item-main">
                   <div className="waitlist-item-name">{item.name}</div>
                   <div className="waitlist-item-meta">
