@@ -75,6 +75,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
   // Состояния для привязки TV к столам
   const [tvDevices, setTvDevices] = useState<{ ip: string; lastSeen: string; tableId: number | null }[]>([]);
+  const [manualIp, setManualIp] = useState('');
+  const [manualTableId, setManualTableId] = useState('');
   
   // Состояния для сотрудников
   const [staff, setStaff] = useState<Staff[]>([]);
@@ -166,6 +168,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     } catch (error) {
       console.error('Error binding TV:', error);
     }
+  };
+
+  const handleManualBind = async () => {
+    if (!manualIp.trim() || !manualTableId) return;
+    await handleBindTv(manualIp.trim(), Number(manualTableId));
+    setManualIp('');
+    setManualTableId('');
   };
 
   useEffect(() => {
@@ -1574,9 +1583,57 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
             </div>
           </div>
 
+          <div style={{
+            display: 'flex',
+            gap: '10px',
+            alignItems: 'center',
+            marginTop: '16px',
+            padding: '16px',
+            background: '#f9fafb',
+            borderRadius: '8px'
+          }}>
+            <input
+              placeholder="IP телевизора (например 192.168.1.140)"
+              value={manualIp}
+              onChange={(e) => setManualIp(e.target.value)}
+              style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #d1d5db', flex: 1 }}
+            />
+            <select
+              value={manualTableId}
+              onChange={(e) => setManualTableId(e.target.value)}
+              style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #d1d5db' }}
+            >
+              <option value="">— выберите стол —</option>
+              {tables.map(table => (
+                <option key={table.id} value={table.id}>
+                  {table.name} ({table.branch})
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={handleManualBind}
+              disabled={!manualIp.trim() || !manualTableId}
+              style={{
+                background: '#2563eb',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '8px 20px',
+                fontWeight: 700,
+                cursor: !manualIp.trim() || !manualTableId ? 'not-allowed' : 'pointer',
+                opacity: !manualIp.trim() || !manualTableId ? 0.5 : 1
+              }}
+            >
+              Привязать
+            </button>
+          </div>
+          <p style={{ padding: '4px 4px 0', color: '#9ca3af', fontSize: '13px' }}>
+            IP телевизора смотри в Настройки → Сеть → Состояние сети на самом TV. Ниже — телевизоры, которые уже выходили на связь с сервером (появляются автоматически после запуска приложения).
+          </p>
+
           {tvDevices.length === 0 && (
             <p style={{ padding: '20px', color: '#6b7280' }}>
-              Пока ни один TV не выходил на связь. Как только приложение на телевизоре запустится и опросит сервер — он появится здесь.
+              Пока ни один TV не выходил на связь.
             </p>
           )}
 
