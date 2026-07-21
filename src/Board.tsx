@@ -1710,7 +1710,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                   style={{ marginBottom: '4px' }}
                   placeholder="До времени"
                 />
-                <div style={{ display: 'flex', gap: '6px', marginBottom: '4px' }}>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
                   {[2, 3].map(hours => (
                     <button
                       key={hours}
@@ -1720,11 +1720,14 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                         setEditForm(prev => ({ ...prev, endTime: addHoursToTime(prev.time, hours) }))
                       }
                       style={{
-                        background: '#f3f4f6',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '4px',
-                        padding: '4px 10px',
-                        fontSize: '12px',
+                        background: '#2563eb',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '6px',
+                        padding: '10px 16px',
+                        fontSize: '16px',
+                        fontWeight: 700,
+                        opacity: editForm.time ? 1 : 0.5,
                         cursor: editForm.time ? 'pointer' : 'not-allowed'
                       }}
                     >
@@ -2600,7 +2603,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                 onFocus={() => setQuickTimeTarget('endTime')}
                 placeholder="До времени"
               />
-              <div style={{ display: 'flex', gap: '6px', margin: '4px 0' }}>
+              <div style={{ display: 'flex', gap: '8px', margin: '8px 0' }}>
                 {[2, 3].map(hours => (
                   <button
                     key={hours}
@@ -2610,11 +2613,14 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                       setQuickForm(prev => ({ ...prev, endTime: addHoursToTime(prev.time, hours) }))
                     }
                     style={{
-                      background: '#f3f4f6',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      padding: '4px 10px',
-                      fontSize: '12px',
+                      background: '#2563eb',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      padding: '10px 16px',
+                      fontSize: '16px',
+                      fontWeight: 700,
+                      opacity: quickForm.time ? 1 : 0.5,
                       cursor: quickForm.time ? 'pointer' : 'not-allowed'
                     }}
                   >
