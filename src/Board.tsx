@@ -4,6 +4,16 @@ import { API_URL } from './config';
 const SOURCES = ['Лично', 'Звонок', 'Онлайн'] as const;
 type SourceType = typeof SOURCES[number];
 
+// Прибавляет часы к времени "HH:MM", с переходом через полночь
+function addHoursToTime(time: string, hours: number): string {
+  const [h, m] = time.split(':').map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return '';
+  const totalMinutes = (h * 60 + m + hours * 60) % (24 * 60);
+  const newH = Math.floor(totalMinutes / 60);
+  const newM = totalMinutes % 60;
+  return `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`;
+}
+
 interface Table {
   id: number;
   name: string;
@@ -948,6 +958,15 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...booking, isActive: nextIsActive, activeStartedAt }),
     });
+
+    if (nextIsActive) {
+      // Новая активная сессия на столе — гасим прежнюю TV-плашку ("время закончилось" и т.п.)
+      fetch(`${API_URL}/api/tv/clear`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tableId: booking.tableId })
+      }).catch(() => {});
+    }
     fetch(`${API_URL}/api/bookings`)
       .then(res => res.json())
       .then(data => setBookings(
@@ -1508,6 +1527,20 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
         } catch (error) {
           console.error('❌ Ошибка отправки уведомления о завершении времени:', error);
         }
+
+        try {
+          await fetch(`${API_URL}/api/tv/notify`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              tableId: booking.tableId,
+              text: `Осталось ${endingSoon.minutesLeft} минут`,
+              durationSec: 15
+            })
+          });
+        } catch (error) {
+          console.error('❌ Ошибка отправки TV-уведомления (ending):', error);
+        }
       }
 
       const validPrefixes = new Set(bookings.map(b => `${b.id}_`));
@@ -1572,6 +1605,20 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
           }
         } catch (error) {
           console.error('❌ Ошибка отправки уведомления об окончании времени:', error);
+        }
+
+        try {
+          await fetch(`${API_URL}/api/tv/notify`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              tableId: booking.tableId,
+              text: 'Время закончилось.\nДля продления подойдите на ресепшен',
+              durationSec: null
+            })
+          });
+        } catch (error) {
+          console.error('❌ Ошибка отправки TV-уведомления (ended):', error);
         }
       }
 
@@ -1663,6 +1710,28 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                   style={{ marginBottom: '4px' }}
                   placeholder="До времени"
                 />
+                <div style={{ display: 'flex', gap: '6px', marginBottom: '4px' }}>
+                  {[2, 3].map(hours => (
+                    <button
+                      key={hours}
+                      type="button"
+                      disabled={!editForm.time}
+                      onClick={() =>
+                        setEditForm(prev => ({ ...prev, endTime: addHoursToTime(prev.time, hours) }))
+                      }
+                      style={{
+                        background: '#f3f4f6',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '4px',
+                        padding: '4px 10px',
+                        fontSize: '12px',
+                        cursor: editForm.time ? 'pointer' : 'not-allowed'
+                      }}
+                    >
+                      Пакет {hours} часа
+                    </button>
+                  ))}
+                </div>
                 <div className="time-buttons">
                   {[
                     { time: '14:00', label: '14' },
@@ -2250,15 +2319,16 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                     const smokingTimerText = formatSmokingTimer(b);
                     const isTimerExpired = isSmokingTimerExpired(b);
                     const endingSoonInfo = getEndingSoonInfo(b);
+                    const isOverdue = b.isActive && !!getEndedInfo(b);
                     const activeDurationText = formatActiveDuration(b);
-                    
+
                     return (
                 <div
                   key={b.id}
                   draggable
                   onDragStart={() => handleDragStart(b)}
                   onClick={(e) => e.stopPropagation()}
-                  className={`booking-card ${b.isActive ? 'green' : 'red'} ${shouldHighlightHH(b) ? 'hh-active' : ''} ${shouldBlinkHH(b) ? 'hh-blink' : ''} ${isTimerExpired ? 'smoking-timer-expired' : ''} ${endingSoonInfo ? 'booking-ending-soon' : ''} ${activeDurationText ? 'has-active-timer' : ''}`}
+                  className={`booking-card ${b.isActive ? 'green' : 'red'} ${shouldHighlightHH(b) ? 'hh-active' : ''} ${shouldBlinkHH(b) ? 'hh-blink' : ''} ${isTimerExpired ? 'smoking-timer-expired' : ''} ${endingSoonInfo ? 'booking-ending-soon' : ''} ${isOverdue ? 'booking-overdue' : ''} ${activeDurationText ? 'has-active-timer' : ''}`}
                     >
                       {activeDurationText && (
                         <div className="booking-active-timer">
@@ -2530,6 +2600,28 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                 onFocus={() => setQuickTimeTarget('endTime')}
                 placeholder="До времени"
               />
+              <div style={{ display: 'flex', gap: '6px', margin: '4px 0' }}>
+                {[2, 3].map(hours => (
+                  <button
+                    key={hours}
+                    type="button"
+                    disabled={!quickForm.time}
+                    onClick={() =>
+                      setQuickForm(prev => ({ ...prev, endTime: addHoursToTime(prev.time, hours) }))
+                    }
+                    style={{
+                      background: '#f3f4f6',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '4px',
+                      padding: '4px 10px',
+                      fontSize: '12px',
+                      cursor: quickForm.time ? 'pointer' : 'not-allowed'
+                    }}
+                  >
+                    Пакет {hours} часа
+                  </button>
+                ))}
+              </div>
               <div className="quick-time-buttons">
                 {[
                   '14:00', '15:00', '16:00', '17:00', '18:00',

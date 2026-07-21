@@ -70,8 +70,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const [overrideInput, setOverrideInput] = useState<string>('');
   
   // Состояние для вкладок
-  const [activeView, setActiveView] = useState<'zones' | 'control' | 'staff' | 'tasks'>('zones');
+  const [activeView, setActiveView] = useState<'zones' | 'control' | 'staff' | 'tasks' | 'tv'>('zones');
   const [sendingZoneId, setSendingZoneId] = useState<number | null>(null);
+
+  // Состояния для привязки TV к столам
+  const [tvDevices, setTvDevices] = useState<{ ip: string; lastSeen: string; tableId: number | null }[]>([]);
   
   // Состояния для сотрудников
   const [staff, setStaff] = useState<Staff[]>([]);
@@ -140,6 +143,37 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       console.error('Error loading tasks:', error);
     }
   };
+
+  // Загрузка списка TV-устройств
+  const loadTvDevices = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/tv/devices`);
+      const data = await response.json();
+      setTvDevices(data);
+    } catch (error) {
+      console.error('Error loading TV devices:', error);
+    }
+  };
+
+  const handleBindTv = async (ip: string, tableId: number | null) => {
+    try {
+      await fetch(`${API_URL}/api/tv/bind`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ip, tableId })
+      });
+      loadTvDevices();
+    } catch (error) {
+      console.error('Error binding TV:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (activeView !== 'tv') return;
+    loadTvDevices();
+    const interval = setInterval(loadTvDevices, 5000);
+    return () => clearInterval(interval);
+  }, [activeView]);
 
   // Загрузка данных при монтировании
   useEffect(() => {
@@ -411,7 +445,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       {/* Заголовок */}
       <div className="header">
         <div>
-          <h1>⚙️ Админ панель - {activeView === 'zones' ? 'Управление зонами' : activeView === 'staff' ? 'Сотрудники' : activeView === 'tasks' ? 'Задачи' : 'Контроль порядка'}</h1>
+          <h1>⚙️ Админ панель - {activeView === 'zones' ? 'Управление зонами' : activeView === 'staff' ? 'Сотрудники' : activeView === 'tasks' ? 'Задачи' : activeView === 'tv' ? 'Телевизоры' : 'Контроль порядка'}</h1>
           <button onClick={onBack} className="back-btn">
             ← Вернуться к доске
           </button>
@@ -435,11 +469,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
           >
             👥 Сотрудники
           </button>
-          <button 
+          <button
             onClick={() => setActiveView('tasks')}
             className={activeView === 'tasks' ? 'active' : ''}
           >
             📋 Задачи
+          </button>
+          <button
+            onClick={() => setActiveView('tv')}
+            className={activeView === 'tv' ? 'active' : ''}
+          >
+            📺 Телевизоры
           </button>
         </div>
       </div>
@@ -1518,6 +1558,61 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {activeView === 'tv' && (
+        <div style={{ padding: '20px' }}>
+          <div className="info-bar">
+            <div>
+              <h2>Привязка телевизоров к столам</h2>
+              <div className="booking-stats">
+                <span className="stat-item total">
+                  Обнаружено TV: {tvDevices.length}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {tvDevices.length === 0 && (
+            <p style={{ padding: '20px', color: '#6b7280' }}>
+              Пока ни один TV не выходил на связь. Как только приложение на телевизоре запустится и опросит сервер — он появится здесь.
+            </p>
+          )}
+
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '16px' }}>
+            <thead>
+              <tr style={{ textAlign: 'left', borderBottom: '2px solid #e5e7eb' }}>
+                <th style={{ padding: '10px' }}>IP телевизора</th>
+                <th style={{ padding: '10px' }}>Последний опрос</th>
+                <th style={{ padding: '10px' }}>Привязан к столу</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tvDevices.map(device => (
+                <tr key={device.ip} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                  <td style={{ padding: '10px', fontFamily: 'monospace' }}>{device.ip}</td>
+                  <td style={{ padding: '10px', color: '#6b7280' }}>
+                    {new Date(device.lastSeen).toLocaleTimeString('ru-RU')}
+                  </td>
+                  <td style={{ padding: '10px' }}>
+                    <select
+                      value={device.tableId ?? ''}
+                      onChange={(e) => handleBindTv(device.ip, e.target.value ? Number(e.target.value) : null)}
+                      style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #d1d5db' }}
+                    >
+                      <option value="">— не привязан —</option>
+                      {tables.map(table => (
+                        <option key={table.id} value={table.id}>
+                          {table.name} ({table.branch})
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
       </div>
