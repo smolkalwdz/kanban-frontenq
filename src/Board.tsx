@@ -183,7 +183,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tableId, action }),
       });
-      setTimeout(() => loadTvVolume(tableId), 2500);
+      setTimeout(() => loadTvVolume(tableId), 1500);
     } catch (error) {
       console.error('Ошибка отправки команды громкости:', error);
     }
