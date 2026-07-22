@@ -154,11 +154,39 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       y: e.clientY + 10, // Смещаем на 10px вниз от курсора
       tableId
     });
+    setContextMenuVolume(null);
+    loadTvVolume(tableId);
   };
 
   // Обработчик закрытия контекстного меню
   const handleCloseContextMenu = () => {
     setContextMenu(null);
+  };
+
+  // Текущая громкость TV этого стола (обновляется при открытии меню и после +/-)
+  const [contextMenuVolume, setContextMenuVolume] = useState<number | null>(null);
+
+  const loadTvVolume = async (tableId: number) => {
+    try {
+      const res = await fetch(`${API_URL}/api/tv/volume/${tableId}`);
+      const data = await res.json();
+      setContextMenuVolume(typeof data.volume === 'number' ? data.volume : null);
+    } catch (error) {
+      console.error('Ошибка получения громкости TV:', error);
+    }
+  };
+
+  const handleVolumeChange = async (tableId: number, action: 'up' | 'down') => {
+    try {
+      await fetch(`${API_URL}/api/tv/volume`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tableId, action }),
+      });
+      setTimeout(() => loadTvVolume(tableId), 2500);
+    } catch (error) {
+      console.error('Ошибка отправки команды громкости:', error);
+    }
   };
 
   // Отправка произвольного текстового сообщения на TV этого стола
@@ -2120,6 +2148,28 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
           >
             📺 Отправить сообщение на TV
           </button>
+          <div
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => handleVolumeChange(contextMenu.tableId, 'down')}
+              style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #d1d5db', cursor: 'pointer' }}
+            >
+              🔉 –
+            </button>
+            <span style={{ minWidth: '36px', textAlign: 'center' }}>
+              {contextMenuVolume === null ? '—' : contextMenuVolume}
+            </span>
+            <button
+              type="button"
+              onClick={() => handleVolumeChange(contextMenu.tableId, 'up')}
+              style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #d1d5db', cursor: 'pointer' }}
+            >
+              🔊 +
+            </button>
+          </div>
         </div>
       )}
 
