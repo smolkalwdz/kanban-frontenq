@@ -70,13 +70,15 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const [overrideInput, setOverrideInput] = useState<string>('');
   
   // Состояние для вкладок
-  const [activeView, setActiveView] = useState<'zones' | 'control' | 'staff' | 'tasks' | 'tv'>('zones');
+  const [activeView, setActiveView] = useState<'zones' | 'control' | 'staff' | 'tasks' | 'tv' | 'slides'>('zones');
   const [sendingZoneId, setSendingZoneId] = useState<number | null>(null);
 
   // Состояния для привязки TV к столам
   const [tvDevices, setTvDevices] = useState<{ ip: string; lastSeen: string; tableId: number | null }[]>([]);
   const [manualIp, setManualIp] = useState('');
   const [manualTableId, setManualTableId] = useState('');
+  const [slides, setSlides] = useState<string[]>([]);
+  const [slidesUploading, setSlidesUploading] = useState(false);
   
   // Состояния для сотрудников
   const [staff, setStaff] = useState<Staff[]>([]);
@@ -182,6 +184,51 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     loadTvDevices();
     const interval = setInterval(loadTvDevices, 5000);
     return () => clearInterval(interval);
+  }, [activeView]);
+
+  // Загрузка списка слайдов
+  const loadSlides = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/tv/slides`);
+      const data = await response.json();
+      setSlides(data);
+    } catch (error) {
+      console.error('Error loading slides:', error);
+    }
+  };
+
+  const handleUploadSlides = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setSlidesUploading(true);
+    try {
+      const formData = new FormData();
+      Array.from(files).forEach(file => formData.append('slides', file));
+      await fetch(`${API_URL}/api/tv/slides/upload`, {
+        method: 'POST',
+        body: formData
+      });
+      await loadSlides();
+    } catch (error) {
+      console.error('Error uploading slides:', error);
+    } finally {
+      setSlidesUploading(false);
+    }
+  };
+
+  const handleDeleteSlide = async (url: string) => {
+    const filename = url.split('/slides/')[1];
+    if (!filename) return;
+    try {
+      await fetch(`${API_URL}/api/tv/slides/${filename}`, { method: 'DELETE' });
+      await loadSlides();
+    } catch (error) {
+      console.error('Error deleting slide:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (activeView !== 'slides') return;
+    loadSlides();
   }, [activeView]);
 
   // Загрузка данных при монтировании
@@ -454,7 +501,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       {/* Заголовок */}
       <div className="header">
         <div>
-          <h1>⚙️ Админ панель - {activeView === 'zones' ? 'Управление зонами' : activeView === 'staff' ? 'Сотрудники' : activeView === 'tasks' ? 'Задачи' : activeView === 'tv' ? 'Телевизоры' : 'Контроль порядка'}</h1>
+          <h1>⚙️ Админ панель - {activeView === 'zones' ? 'Управление зонами' : activeView === 'staff' ? 'Сотрудники' : activeView === 'tasks' ? 'Задачи' : activeView === 'tv' ? 'Телевизоры' : activeView === 'slides' ? 'Слайды' : 'Контроль порядка'}</h1>
           <button onClick={onBack} className="back-btn">
             ← Вернуться к доске
           </button>
@@ -489,6 +536,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
             className={activeView === 'tv' ? 'active' : ''}
           >
             📺 Телевизоры
+          </button>
+          <button
+            onClick={() => setActiveView('slides')}
+            className={activeView === 'slides' ? 'active' : ''}
+          >
+            🖼️ Слайды
           </button>
         </div>
       </div>
@@ -1670,6 +1723,76 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {activeView === 'slides' && (
+        <div style={{ padding: '20px' }}>
+          <div className="info-bar">
+            <div>
+              <h2>Слайды на TV (показываются, пока не включена PS5)</h2>
+              <div className="booking-stats">
+                <span className="stat-item total">
+                  Загружено: {slides.length}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div style={{
+            marginTop: '16px',
+            padding: '16px',
+            background: '#f9fafb',
+            borderRadius: '8px'
+          }}>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              disabled={slidesUploading}
+              onChange={(e) => handleUploadSlides(e.target.files)}
+            />
+            {slidesUploading && <span style={{ marginLeft: '12px', color: '#6b7280' }}>Загрузка...</span>}
+          </div>
+          <p style={{ padding: '4px 4px 0', color: '#9ca3af', fontSize: '13px' }}>
+            Появляются на всех телевизорах автоматически (в течение ~минуты), переустанавливать приложение не нужно.
+          </p>
+
+          {slides.length === 0 && (
+            <p style={{ padding: '20px', color: '#6b7280' }}>
+              Пока нет ни одного слайда.
+            </p>
+          )}
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+            gap: '16px',
+            marginTop: '16px'
+          }}>
+            {slides.map(url => (
+              <div key={url} style={{ position: 'relative', border: '1px solid #e5e7eb', borderRadius: '8px', overflow: 'hidden' }}>
+                <img src={url} alt="" style={{ width: '100%', height: '140px', objectFit: 'cover', display: 'block' }} />
+                <button
+                  onClick={() => handleDeleteSlide(url)}
+                  style={{
+                    position: 'absolute',
+                    top: '8px',
+                    right: '8px',
+                    background: 'rgba(220,38,38,0.9)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '6px 10px',
+                    cursor: 'pointer',
+                    fontWeight: 700
+                  }}
+                >
+                  Удалить
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
       </div>
