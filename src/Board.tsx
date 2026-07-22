@@ -161,6 +161,21 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     setContextMenu(null);
   };
 
+  // Отправка произвольного текстового сообщения на TV этого стола
+  const handleSendTvMessage = async (tableId: number) => {
+    const text = window.prompt('Текст сообщения на экран TV:');
+    if (!text || !text.trim()) return;
+    try {
+      await fetch(`${API_URL}/api/tv/notify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tableId, text: text.trim(), durationSec: 20 }),
+      });
+    } catch (error) {
+      console.error('Ошибка отправки сообщения на TV:', error);
+    }
+  };
+
   // Обработчик клика на зону для быстрого добавления
   const handleZoneClick = (e: React.MouseEvent, tableId: number) => {
     // Проверяем, был ли клик по карточке брони или её элементам управления
@@ -2092,6 +2107,18 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
             {tables.find(t => t.id === contextMenu.tableId)?.isNotCleaned
               ? '✨ Отметить как убранную'
               : '🚫 Отметить как неубранную'}
+          </button>
+          <button
+            className="context-menu-item"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleSendTvMessage(contextMenu.tableId);
+              setContextMenu(null);
+            }}
+            type="button"
+          >
+            📺 Отправить сообщение на TV
           </button>
         </div>
       )}
