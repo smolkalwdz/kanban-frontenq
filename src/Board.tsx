@@ -156,6 +156,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     });
     setContextMenuVolume(null);
     loadTvVolume(tableId);
+    loadTvControlStatus(tableId);
   };
 
   // Обработчик закрытия контекстного меню
@@ -186,6 +187,68 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       setTimeout(() => loadTvVolume(tableId), 1500);
     } catch (error) {
       console.error('Ошибка отправки команды громкости:', error);
+    }
+  };
+
+  // Статус TV: включен ли, работает ли приложение (раздел "Управление TV" в контекстном меню)
+  const [contextMenuTvStatus, setContextMenuTvStatus] = useState<{
+    hasSmartThings: boolean;
+    tvOn: boolean | null;
+    appRunning: boolean | null;
+  } | null>(null);
+  const [tvControlBusy, setTvControlBusy] = useState(false);
+
+  const loadTvControlStatus = async (tableId: number) => {
+    try {
+      const res = await fetch(`${API_URL}/api/tv/control-status/${tableId}`);
+      const data = await res.json();
+      setContextMenuTvStatus(data);
+    } catch (error) {
+      console.error('Ошибка получения статуса TV:', error);
+      setContextMenuTvStatus(null);
+    }
+  };
+
+  // Включить TV (если выключен) и запустить приложение
+  const handleTvStart = async (tableId: number) => {
+    setTvControlBusy(true);
+    try {
+      const res = await fetch(`${API_URL}/api/tv/control-start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tableId }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert('Не удалось запустить TV: ' + (data.error || res.status));
+      }
+    } catch (error) {
+      console.error('Ошибка запуска TV:', error);
+      alert('Ошибка запуска TV');
+    } finally {
+      setTvControlBusy(false);
+      loadTvControlStatus(tableId);
+    }
+  };
+
+  // Переключить вход HDMI на TV
+  const handleTvHdmi = async (tableId: number, source: string) => {
+    setTvControlBusy(true);
+    try {
+      const res = await fetch(`${API_URL}/api/tv/control-hdmi`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tableId, source }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert('Не удалось переключить вход: ' + (data.error || res.status));
+      }
+    } catch (error) {
+      console.error('Ошибка переключения HDMI:', error);
+      alert('Ошибка переключения HDMI');
+    } finally {
+      setTvControlBusy(false);
     }
   };
 
@@ -2136,6 +2199,57 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
               ? '✨ Отметить как убранную'
               : '🚫 Отметить как неубранную'}
           </button>
+          <div style={{ padding: '8px 12px 4px', fontSize: '11px', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase' }}>
+            🖥 Управление TV
+          </div>
+
+          {/* Статус: TV включен/выключен, работает ли приложение */}
+          <div style={{ display: 'flex', gap: '10px', padding: '2px 12px 8px', fontSize: '12px' }}>
+            {contextMenuTvStatus === null || !contextMenuTvStatus.hasSmartThings ? (
+              <span style={{ color: '#9ca3af' }}>нет данных SmartThings</span>
+            ) : (
+              <>
+                <span>
+                  {contextMenuTvStatus.tvOn === null ? '⚪' : contextMenuTvStatus.tvOn ? '🟢' : '🔴'} TV {contextMenuTvStatus.tvOn === null ? '?' : contextMenuTvStatus.tvOn ? 'включен' : 'выключен'}
+                </span>
+                <span>
+                  {contextMenuTvStatus.appRunning ? '🟢' : '🔴'} Приложение {contextMenuTvStatus.appRunning ? 'работает' : 'не отвечает'}
+                </span>
+              </>
+            )}
+          </div>
+
+          <button
+            className="context-menu-item"
+            disabled={tvControlBusy || !contextMenuTvStatus?.hasSmartThings}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleTvStart(contextMenu.tableId);
+            }}
+            type="button"
+          >
+            ▶️ Запустить TV + приложение
+          </button>
+
+          {/* Переключение входа HDMI (выходит из приложения на внешний источник) */}
+          <div
+            style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', padding: '6px 12px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {['HDMI1', 'HDMI2', 'HDMI3', 'HDMI4'].map((src) => (
+              <button
+                key={src}
+                type="button"
+                disabled={tvControlBusy || !contextMenuTvStatus?.hasSmartThings}
+                onClick={() => handleTvHdmi(contextMenu.tableId, src)}
+                style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid #d1d5db', cursor: 'pointer', fontSize: '11px' }}
+              >
+                {src}
+              </button>
+            ))}
+          </div>
+
           <button
             className="context-menu-item"
             onClick={(e) => {
