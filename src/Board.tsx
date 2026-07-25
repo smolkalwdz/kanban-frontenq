@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { API_URL } from './config';
 
 const SOURCES = ['Лично', 'Звонок', 'Онлайн'] as const;
@@ -2176,11 +2176,32 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     };
   }, []);
 
+  // Меню сильно выросло (добавился блок "Управление TV") и при клике внизу экрана
+  // стало вылезать за нижний край — после рендера подрезаем позицию под реальные размеры.
+  const contextMenuRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (!contextMenu || !contextMenuRef.current) return;
+    const el = contextMenuRef.current;
+    const rect = el.getBoundingClientRect();
+    const margin = 8;
+    let top = contextMenu.y;
+    let left = contextMenu.x;
+    if (top + rect.height > window.innerHeight - margin) {
+      top = Math.max(margin, window.innerHeight - rect.height - margin);
+    }
+    if (left + rect.width > window.innerWidth - margin) {
+      left = Math.max(margin, window.innerWidth - rect.width - margin);
+    }
+    el.style.top = `${top}px`;
+    el.style.left = `${left}px`;
+  }, [contextMenu, contextMenuTvStatus, contextMenuVolume]);
+
   return (
     <div>
       {/* Контекстное меню */}
       {contextMenu && (
         <div
+          ref={contextMenuRef}
           className="context-menu"
           style={{
             top: contextMenu.y,
