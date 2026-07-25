@@ -184,7 +184,9 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tableId, action }),
       });
-      setTimeout(() => loadTvVolume(tableId), 1500);
+      // SmartThings кэширует значение громкости с задержкой — раньше ~6 сек
+      // читалось старое число, ждём подольше перед повторным запросом.
+      setTimeout(() => loadTvVolume(tableId), 6000);
     } catch (error) {
       console.error('Ошибка отправки команды громкости:', error);
     }
