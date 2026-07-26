@@ -5,20 +5,12 @@ export interface AntiSleepZone {
   enabled: boolean;
 }
 
-export function groupAntiSleepZones(zones: AntiSleepZone[]) {
-  return {
-    'МСК': zones.filter(zone => zone.branch === 'МСК'),
-    'Полевая': zones.filter(zone => zone.branch === 'Полевая'),
-  };
-}
-
-export function updateAntiSleepZone(
+export function findAntiSleepZone(
   zones: AntiSleepZone[],
-  updatedZone: AntiSleepZone
-): AntiSleepZone[] {
-  return zones.map(zone =>
-    zone.branch === updatedZone.branch && zone.tableId === updatedZone.tableId
-      ? updatedZone
-      : zone
+  branch: AntiSleepZone['branch'],
+  tableId: number
+): AntiSleepZone | undefined {
+  return zones.find(zone =>
+    zone.branch === branch && zone.tableId === tableId
   );
 }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { API_URL } from './config';
+import { AntiSleepZone, findAntiSleepZone } from './antiSleep';
 
 const SOURCES = ['Лично', 'Звонок', 'Онлайн'] as const;
 type SourceType = typeof SOURCES[number];
@@ -155,8 +156,10 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       tableId
     });
     setContextMenuVolume(null);
+    setContextMenuAntiSleep(null);
     loadTvVolume(tableId);
     loadTvControlStatus(tableId);
+    loadTvAntiSleep(tableId);
   };
 
   // Обработчик закрытия контекстного меню
@@ -199,6 +202,8 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     appRunning: boolean | null;
   } | null>(null);
   const [tvControlBusy, setTvControlBusy] = useState(false);
+  const [contextMenuAntiSleep, setContextMenuAntiSleep] = useState<AntiSleepZone | null>(null);
+  const [antiSleepBusy, setAntiSleepBusy] = useState(false);
 
   const loadTvControlStatus = async (tableId: number) => {
     try {
@@ -208,6 +213,44 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     } catch (error) {
       console.error('Ошибка получения статуса TV:', error);
       setContextMenuTvStatus(null);
+    }
+  };
+
+  const loadTvAntiSleep = async (tableId: number) => {
+    try {
+      const res = await fetch(`${API_URL}/api/tv/anti-sleep`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const zones: AntiSleepZone[] = Array.isArray(data.zones) ? data.zones : [];
+      setContextMenuAntiSleep(findAntiSleepZone(zones, currentBranch, tableId) || null);
+    } catch (error) {
+      console.error('Ошибка получения настройки антисна TV:', error);
+      setContextMenuAntiSleep(null);
+    }
+  };
+
+  const handleTvAntiSleep = async (tableId: number) => {
+    if (!contextMenuAntiSleep) return;
+    setAntiSleepBusy(true);
+    try {
+      const res = await fetch(
+        `${API_URL}/api/tv/anti-sleep/${encodeURIComponent(contextMenuAntiSleep.branch)}/${tableId}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: !contextMenuAntiSleep.enabled }),
+        }
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      setContextMenuAntiSleep(await res.json());
+    } catch (error) {
+      console.error('Ошибка переключения антисна TV:', error);
+      alert('Не удалось изменить антисон TV');
+    } finally {
+      setAntiSleepBusy(false);
     }
   };
 
@@ -2194,7 +2237,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     }
     el.style.top = `${top}px`;
     el.style.left = `${left}px`;
-  }, [contextMenu, contextMenuTvStatus, contextMenuVolume]);
+  }, [contextMenu, contextMenuTvStatus, contextMenuVolume, contextMenuAntiSleep]);
 
   return (
     <div>
@@ -2253,6 +2296,32 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
             type="button"
           >
             ▶️ Запустить TV + приложение
+          </button>
+
+          <button
+            className="context-menu-item"
+            disabled={antiSleepBusy || !contextMenuAntiSleep}
+            aria-pressed={contextMenuAntiSleep?.enabled || false}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleTvAntiSleep(contextMenu.tableId);
+            }}
+            type="button"
+            title="Во включённом состоянии TV получает RIGHT каждые 2 минуты"
+            style={contextMenuAntiSleep?.enabled ? {
+              background: '#d1fae5',
+              color: '#065f46',
+              fontWeight: 700,
+            } : undefined}
+          >
+            {antiSleepBusy
+              ? '⏳ Антисон: сохранение…'
+              : !contextMenuAntiSleep
+                ? '🌙 Антисон: нет данных'
+                : contextMenuAntiSleep.enabled
+                  ? '🌙 Антисон ВКЛ — выключить'
+                  : '🌙 Антисон ВЫКЛ — включить'}
           </button>
 
           {/* Переключение входа HDMI (выходит из приложения на внешний источник) */}
@@ -2954,4 +3023,4 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   );
 };
 
-export default Board; 
+export default Board;
