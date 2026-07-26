@@ -1,5 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { API_URL } from './config';
+import {
+  AntiSleepZone,
+  groupAntiSleepZones,
+  updateAntiSleepZone,
+} from './antiSleep';
 
 interface Table {
   id: number;
@@ -77,6 +82,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const [tvDevices, setTvDevices] = useState<{ ip: string; lastSeen: string; tableId: number | null }[]>([]);
   const [manualIp, setManualIp] = useState('');
   const [manualTableId, setManualTableId] = useState('');
+  const [antiSleepZones, setAntiSleepZones] = useState<AntiSleepZone[]>([]);
+  const [antiSleepSavingKey, setAntiSleepSavingKey] = useState<string | null>(null);
+  const [antiSleepError, setAntiSleepError] = useState('');
   const [slides, setSlides] = useState<string[]>([]);
   const [slidesUploading, setSlidesUploading] = useState(false);
   
@@ -159,6 +167,43 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     }
   };
 
+  const loadAntiSleepZones = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/tv/anti-sleep`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      setAntiSleepZones(Array.isArray(data.zones) ? data.zones : []);
+      setAntiSleepError('');
+    } catch (error) {
+      console.error('Error loading TV anti-sleep settings:', error);
+      setAntiSleepError('Не удалось загрузить настройки антисна');
+    }
+  };
+
+  const handleToggleAntiSleep = async (zone: AntiSleepZone) => {
+    const key = `${zone.branch}:${zone.tableId}`;
+    setAntiSleepSavingKey(key);
+    setAntiSleepError('');
+    try {
+      const response = await fetch(
+        `${API_URL}/api/tv/anti-sleep/${encodeURIComponent(zone.branch)}/${zone.tableId}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: !zone.enabled }),
+        }
+      );
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const updatedZone: AntiSleepZone = await response.json();
+      setAntiSleepZones(prev => updateAntiSleepZone(prev, updatedZone));
+    } catch (error) {
+      console.error('Error updating TV anti-sleep setting:', error);
+      setAntiSleepError(`Не удалось изменить антисон: ${zone.zoneName} (${zone.branch})`);
+    } finally {
+      setAntiSleepSavingKey(null);
+    }
+  };
+
   const handleBindTv = async (ip: string, tableId: number | null) => {
     try {
       await fetch(`${API_URL}/api/tv/bind`, {
@@ -182,7 +227,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   useEffect(() => {
     if (activeView !== 'tv') return;
     loadTvDevices();
-    const interval = setInterval(loadTvDevices, 5000);
+    loadAntiSleepZones();
+    const interval = setInterval(() => {
+      loadTvDevices();
+      loadAntiSleepZones();
+    }, 5000);
     return () => clearInterval(interval);
   }, [activeView]);
 
@@ -1636,6 +1685,54 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
             </div>
           </div>
 
+          <section className="anti-sleep-panel">
+            <div className="anti-sleep-panel-header">
+              <div>
+                <h3>Антисон телевизоров</h3>
+                <p>Включённая зона получает кнопку RIGHT каждые 2 минуты.</p>
+              </div>
+              <div className="anti-sleep-warning">
+                ⚠️ В некоторых видеоплеерах RIGHT может перематывать фильм
+              </div>
+            </div>
+
+            {antiSleepError && (
+              <div className="anti-sleep-error">{antiSleepError}</div>
+            )}
+
+            <div className="anti-sleep-branches">
+              {(['МСК', 'Полевая'] as const).map(branch => {
+                const branchZones = groupAntiSleepZones(antiSleepZones)[branch];
+                return (
+                  <div className="anti-sleep-branch" key={branch}>
+                    <h4>{branch}</h4>
+                    <div className="anti-sleep-grid">
+                      {branchZones.map(zone => {
+                        const key = `${zone.branch}:${zone.tableId}`;
+                        const saving = antiSleepSavingKey === key;
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            className={`anti-sleep-zone-button ${zone.enabled ? 'enabled' : ''}`}
+                            disabled={saving}
+                            onClick={() => handleToggleAntiSleep(zone)}
+                            aria-pressed={zone.enabled}
+                          >
+                            <span>{zone.zoneName}</span>
+                            <strong>
+                              {saving ? 'Сохранение…' : zone.enabled ? 'Антисон ВКЛ' : 'Антисон ВЫКЛ'}
+                            </strong>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
           <div style={{
             display: 'flex',
             gap: '10px',
@@ -1800,4 +1897,4 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   );
 };
 
-export default AdminPanel; 
+export default AdminPanel;

@@ -684,6 +684,129 @@ body {
   text-shadow: 0 1px 1px rgba(4, 120, 87, 0.2);
 }
 
+.anti-sleep-panel {
+  margin-top: 16px;
+  padding: 18px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.anti-sleep-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.anti-sleep-panel-header h3 {
+  margin: 0 0 4px;
+  color: #0f172a;
+}
+
+.anti-sleep-panel-header p {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.anti-sleep-warning {
+  max-width: 390px;
+  padding: 8px 10px;
+  border: 1px solid #f59e0b;
+  border-radius: 8px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.anti-sleep-error {
+  margin-bottom: 12px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: #fee2e2;
+  color: #991b1b;
+  font-weight: 700;
+}
+
+.anti-sleep-branches {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.anti-sleep-branch {
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.anti-sleep-branch h4 {
+  margin: 0 0 10px;
+  color: #334155;
+}
+
+.anti-sleep-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 8px;
+}
+
+.anti-sleep-zone-button {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 58px;
+  padding: 9px 10px;
+  border: 2px solid #cbd5e1;
+  border-radius: 9px;
+  background: #f1f5f9;
+  color: #475569;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+
+.anti-sleep-zone-button:hover:not(:disabled) {
+  border-color: #94a3b8;
+  transform: translateY(-1px);
+}
+
+.anti-sleep-zone-button strong {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.anti-sleep-zone-button.enabled {
+  border-color: #059669;
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.anti-sleep-zone-button.enabled strong {
+  color: #047857;
+}
+
+.anti-sleep-zone-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+@media (max-width: 900px) {
+  .anti-sleep-panel-header,
+  .anti-sleep-branches {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .anti-sleep-warning {
+    max-width: none;
+  }
+}
+
 .booking-card .booking-comment {
   font-size: 14px;
   color: #6b21a8;
