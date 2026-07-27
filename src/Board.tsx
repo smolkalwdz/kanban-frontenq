@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { API_URL } from './config';
 import { AntiSleepZone, findAntiSleepZone } from './antiSleep';
+import {
+  PendingVolumeChange,
+  createPendingVolumeChange,
+  reconcileVolumeReadback,
+} from './tvVolumeDisplay';
 
 const SOURCES = ['Лично', 'Звонок', 'Онлайн'] as const;
 type SourceType = typeof SOURCES[number];
@@ -169,12 +174,22 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
 
   // Текущая громкость TV этого стола (обновляется при открытии меню и после +/-)
   const [contextMenuVolume, setContextMenuVolume] = useState<number | null>(null);
+  const pendingVolumeChangeRef = useRef<PendingVolumeChange | null>(null);
 
   const loadTvVolume = async (tableId: number) => {
     try {
       const res = await fetch(`${API_URL}/api/tv/volume/${tableId}`);
       const data = await res.json();
-      setContextMenuVolume(typeof data.volume === 'number' ? data.volume : null);
+      const readbackVolume = typeof data.volume === 'number' ? data.volume : null;
+      const reconciledVolume = reconcileVolumeReadback(
+        readbackVolume,
+        pendingVolumeChangeRef.current,
+        Date.now()
+      );
+      if (readbackVolume === reconciledVolume) {
+        pendingVolumeChangeRef.current = null;
+      }
+      setContextMenuVolume(reconciledVolume);
     } catch (error) {
       console.error('Ошибка получения громкости TV:', error);
     }
@@ -192,13 +207,14 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       }
       setContextMenuVolume((current) => {
         if (typeof current !== 'number') return current;
-        const next = action === 'up' ? current + 1 : current - 1;
-        return Math.max(0, Math.min(100, next));
+        const pending = createPendingVolumeChange(current, action, Date.now());
+        pendingVolumeChangeRef.current = pending;
+        return pending.volume;
       });
       // SmartThings иногда отдаёт старую громкость сразу после команды.
-      // Обновляем дважды: быстро для нормального случая и позже для кэша Samsung.
+      // Первый ранний ответ не должен откатывать оптимистичное значение.
       setTimeout(() => loadTvVolume(tableId), 2500);
-      setTimeout(() => loadTvVolume(tableId), 7000);
+      setTimeout(() => loadTvVolume(tableId), 12000);
     } catch (error) {
       console.error('Ошибка отправки команды громкости:', error);
     }
