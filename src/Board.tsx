@@ -182,14 +182,23 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
 
   const handleVolumeChange = async (tableId: number, action: 'up' | 'down') => {
     try {
-      await fetch(`${API_URL}/api/tv/volume`, {
+      const res = await fetch(`${API_URL}/api/tv/volume`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tableId, action }),
       });
-      // SmartThings кэширует значение громкости с задержкой — раньше ~6 сек
-      // читалось старое число, ждём подольше перед повторным запросом.
-      setTimeout(() => loadTvVolume(tableId), 6000);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      setContextMenuVolume((current) => {
+        if (typeof current !== 'number') return current;
+        const next = action === 'up' ? current + 1 : current - 1;
+        return Math.max(0, Math.min(100, next));
+      });
+      // SmartThings иногда отдаёт старую громкость сразу после команды.
+      // Обновляем дважды: быстро для нормального случая и позже для кэша Samsung.
+      setTimeout(() => loadTvVolume(tableId), 2500);
+      setTimeout(() => loadTvVolume(tableId), 7000);
     } catch (error) {
       console.error('Ошибка отправки команды громкости:', error);
     }
