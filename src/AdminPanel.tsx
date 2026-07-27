@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { API_URL } from './config';
+import { parseTvMediaItems, TvMediaItem } from './tvMedia';
 
 interface Table {
   id: number;
@@ -77,8 +78,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const [tvDevices, setTvDevices] = useState<{ ip: string; lastSeen: string; tableId: number | null }[]>([]);
   const [manualIp, setManualIp] = useState('');
   const [manualTableId, setManualTableId] = useState('');
-  const [slides, setSlides] = useState<string[]>([]);
-  const [slidesUploading, setSlidesUploading] = useState(false);
+  const [tvMedia, setTvMedia] = useState<TvMediaItem[]>([]);
+  const [tvMediaUploading, setTvMediaUploading] = useState(false);
+  const [tvMediaError, setTvMediaError] = useState('');
   
   // Состояния для сотрудников
   const [staff, setStaff] = useState<Staff[]>([]);
@@ -186,49 +188,64 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     return () => clearInterval(interval);
   }, [activeView]);
 
-  // Загрузка списка слайдов
-  const loadSlides = async () => {
+  // Загрузка общего плейлиста изображений и видео
+  const loadTvMedia = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/tv/slides`);
+      const response = await fetch(`${API_URL}/api/tv/media`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
-      setSlides(data);
+      setTvMedia(parseTvMediaItems(data));
+      setTvMediaError('');
     } catch (error) {
-      console.error('Error loading slides:', error);
+      console.error('Error loading TV media:', error);
+      setTvMediaError('Не удалось загрузить список медиа');
     }
   };
 
-  const handleUploadSlides = async (files: FileList | null) => {
+  const handleUploadTvMedia = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
-    setSlidesUploading(true);
+    setTvMediaUploading(true);
+    setTvMediaError('');
     try {
       const formData = new FormData();
       Array.from(files).forEach(file => formData.append('slides', file));
-      await fetch(`${API_URL}/api/tv/slides/upload`, {
+      const response = await fetch(`${API_URL}/api/tv/slides/upload`, {
         method: 'POST',
         body: formData
       });
-      await loadSlides();
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${response.status}`);
+      }
+      await loadTvMedia();
     } catch (error) {
-      console.error('Error uploading slides:', error);
+      console.error('Error uploading TV media:', error);
+      setTvMediaError(error instanceof Error ? error.message : 'Ошибка загрузки медиа');
     } finally {
-      setSlidesUploading(false);
+      setTvMediaUploading(false);
     }
   };
 
-  const handleDeleteSlide = async (url: string) => {
+  const handleDeleteTvMedia = async (url: string) => {
     const filename = url.split('/slides/')[1];
     if (!filename) return;
+    setTvMediaError('');
     try {
-      await fetch(`${API_URL}/api/tv/slides/${filename}`, { method: 'DELETE' });
-      await loadSlides();
+      const response = await fetch(`${API_URL}/api/tv/slides/${filename}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${response.status}`);
+      }
+      await loadTvMedia();
     } catch (error) {
-      console.error('Error deleting slide:', error);
+      console.error('Error deleting TV media:', error);
+      setTvMediaError(error instanceof Error ? error.message : 'Ошибка удаления медиа');
     }
   };
 
   useEffect(() => {
     if (activeView !== 'slides') return;
-    loadSlides();
+    loadTvMedia();
   }, [activeView]);
 
   // Загрузка данных при монтировании
@@ -501,7 +518,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       {/* Заголовок */}
       <div className="header">
         <div>
-          <h1>⚙️ Админ панель - {activeView === 'zones' ? 'Управление зонами' : activeView === 'staff' ? 'Сотрудники' : activeView === 'tasks' ? 'Задачи' : activeView === 'tv' ? 'Телевизоры' : activeView === 'slides' ? 'Слайды' : 'Контроль порядка'}</h1>
+          <h1>⚙️ Админ панель - {activeView === 'zones' ? 'Управление зонами' : activeView === 'staff' ? 'Сотрудники' : activeView === 'tasks' ? 'Задачи' : activeView === 'tv' ? 'Телевизоры' : activeView === 'slides' ? 'Медиа на TV' : 'Контроль порядка'}</h1>
           <button onClick={onBack} className="back-btn">
             ← Вернуться к доске
           </button>
@@ -541,7 +558,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
             onClick={() => setActiveView('slides')}
             className={activeView === 'slides' ? 'active' : ''}
           >
-            🖼️ Слайды
+            🎞️ Медиа на TV
           </button>
         </div>
       </div>
@@ -1730,10 +1747,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
         <div style={{ padding: '20px' }}>
           <div className="info-bar">
             <div>
-              <h2>Слайды на TV (показываются, пока не включена PS5)</h2>
+              <h2>Медиа на TV (показывается, пока не включена PS5)</h2>
               <div className="booking-stats">
                 <span className="stat-item total">
-                  Загружено: {slides.length}
+                  Загружено: {tvMedia.length}
                 </span>
               </div>
             </div>
@@ -1747,20 +1764,26 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
           }}>
             <input
               type="file"
-              accept="image/*"
+              accept=".jpg,.jpeg,.png,.webp,.mp4,image/jpeg,image/png,image/webp,video/mp4"
               multiple
-              disabled={slidesUploading}
-              onChange={(e) => handleUploadSlides(e.target.files)}
+              disabled={tvMediaUploading}
+              onChange={(e) => handleUploadTvMedia(e.target.files)}
             />
-            {slidesUploading && <span style={{ marginLeft: '12px', color: '#6b7280' }}>Загрузка...</span>}
+            {tvMediaUploading && <span style={{ marginLeft: '12px', color: '#6b7280' }}>Загрузка...</span>}
           </div>
           <p style={{ padding: '4px 4px 0', color: '#9ca3af', fontSize: '13px' }}>
-            Появляются на всех телевизорах автоматически (в течение ~минуты), переустанавливать приложение не нужно.
+            Изображения показываются 7 секунд, MP4-видео воспроизводятся полностью.
           </p>
 
-          {slides.length === 0 && (
+          {tvMediaError && (
+            <p style={{ padding: '12px', color: '#991b1b', background: '#fee2e2', borderRadius: '8px' }}>
+              {tvMediaError}
+            </p>
+          )}
+
+          {tvMedia.length === 0 && (
             <p style={{ padding: '20px', color: '#6b7280' }}>
-              Пока нет ни одного слайда.
+              Пока нет ни одного изображения или видео.
             </p>
           )}
 
@@ -1770,11 +1793,20 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
             gap: '16px',
             marginTop: '16px'
           }}>
-            {slides.map(url => (
-              <div key={url} style={{ position: 'relative', border: '1px solid #e5e7eb', borderRadius: '8px', overflow: 'hidden' }}>
-                <img src={url} alt="" style={{ width: '100%', height: '140px', objectFit: 'cover', display: 'block' }} />
+            {tvMedia.map(item => (
+              <div key={item.url} style={{ position: 'relative', border: '1px solid #e5e7eb', borderRadius: '8px', overflow: 'hidden' }}>
+                {item.type === 'video' ? (
+                  <video
+                    src={item.url}
+                    controls
+                    preload="metadata"
+                    style={{ width: '100%', height: '140px', objectFit: 'contain', display: 'block', background: '#000' }}
+                  />
+                ) : (
+                  <img src={item.url} alt="" style={{ width: '100%', height: '140px', objectFit: 'cover', display: 'block' }} />
+                )}
                 <button
-                  onClick={() => handleDeleteSlide(url)}
+                  onClick={() => handleDeleteTvMedia(item.url)}
                   style={{
                     position: 'absolute',
                     top: '8px',

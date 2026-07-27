@@ -55,7 +55,7 @@ test('builds a sorted encoded typed playlist', () => {
 ```
 
 - [ ] **Step 2: Run `node --test tvMedia.test.js` and verify missing exports fail**
-- [ ] **Step 3: Implement classification, stable sorting, URL encoding and per-type size validation**
+- [ ] **Step 3: Implement classification, upload-time sorting, URL encoding and per-type size validation**
 - [ ] **Step 4: Add `GET /api/tv/media`; keep `/api/tv/slides` image-only**
 - [ ] **Step 5: Accept image MIME types and `video/mp4`, use a 100 MB Multer ceiling, and reject/remove images larger than 15 MB**
 - [ ] **Step 6: Return explicit JSON errors for failed upload and deletion**
