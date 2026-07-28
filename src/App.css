@@ -1113,6 +1113,11 @@ button:hover {
   border-left-color: #111827;
 }
 
+.booking-package-row.happy_hours {
+  border-left-color: #f59e0b;
+  background: #fffbeb;
+}
+
 .booking-package-row.expired {
   background: #fee2e2;
   border-left-color: #dc2626;
@@ -1179,6 +1184,11 @@ button:hover {
 
 .mixed-package-presets button:nth-child(4) {
   background: #111827;
+}
+
+.mixed-package-presets button:nth-child(5) {
+  grid-column: 1 / -1;
+  background: #f59e0b;
 }
 
 .mixed-package-total {

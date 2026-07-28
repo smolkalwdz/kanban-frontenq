@@ -8,6 +8,11 @@ export type UnlimitedPackageGroup = {
   guests: number;
 };
 
+export type HappyHoursPackageGroup = {
+  kind: 'happy_hours';
+  guests: number;
+};
+
 export type HourlyPackageGroup = {
   kind: 'package';
   hours: 2 | 3;
@@ -15,7 +20,7 @@ export type HourlyPackageGroup = {
   startedAt?: string;
 };
 
-export type PackageGroup = TimedPackageGroup | UnlimitedPackageGroup | HourlyPackageGroup;
+export type PackageGroup = TimedPackageGroup | UnlimitedPackageGroup | HappyHoursPackageGroup | HourlyPackageGroup;
 
 export interface PackageGroupEndingSoonInfo {
   endDate: Date;
@@ -35,7 +40,7 @@ export interface ParsedPackageComment {
   comment: string;
 }
 
-export type PackagePreset = 'time' | '2h' | '3h' | 'unlimited';
+export type PackagePreset = 'time' | '2h' | '3h' | 'unlimited' | 'happy_hours';
 
 const PACKAGE_PREFIX = '[packages]';
 
@@ -70,6 +75,10 @@ export function normalizePackageGroups(groups: PackageGroup[]): PackageGroup[] {
 
       if (group.kind === 'unlimited') {
         return { kind: 'unlimited', guests } as UnlimitedPackageGroup;
+      }
+
+      if (group.kind === 'happy_hours') {
+        return { kind: 'happy_hours', guests } as HappyHoursPackageGroup;
       }
 
       if (group.kind === 'package' && (group.hours === 2 || group.hours === 3)) {
@@ -122,16 +131,18 @@ export function getPackageGroupGuestCounts(groups: PackageGroup[]): {
   package2Guests: number;
   package3Guests: number;
   unlimitedGuests: number;
+  happyHoursGuests: number;
 } {
   return normalizePackageGroups(groups).reduce(
     (counts, group) => {
       if (group.kind === 'time') counts.timeGuests += group.guests;
       if (group.kind === 'unlimited') counts.unlimitedGuests += group.guests;
+      if (group.kind === 'happy_hours') counts.happyHoursGuests += group.guests;
       if (group.kind === 'package' && group.hours === 2) counts.package2Guests += group.guests;
       if (group.kind === 'package' && group.hours === 3) counts.package3Guests += group.guests;
       return counts;
     },
-    { timeGuests: 0, package2Guests: 0, package3Guests: 0, unlimitedGuests: 0 }
+    { timeGuests: 0, package2Guests: 0, package3Guests: 0, unlimitedGuests: 0, happyHoursGuests: 0 }
   );
 }
 
@@ -140,6 +151,7 @@ export function buildPackagePreset(preset: PackagePreset, guests: number): { gro
   if (preset === '2h') return { groups: [{ kind: 'package', hours: 2, guests: guestCount }], endTime: '' };
   if (preset === '3h') return { groups: [{ kind: 'package', hours: 3, guests: guestCount }], endTime: '' };
   if (preset === 'unlimited') return { groups: [{ kind: 'unlimited', guests: guestCount }], endTime: '' };
+  if (preset === 'happy_hours') return { groups: [{ kind: 'happy_hours', guests: guestCount }], endTime: '' };
   return { groups: [{ kind: 'time', guests: guestCount }], endTime: undefined };
 }
 

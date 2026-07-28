@@ -155,6 +155,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     guests: 1,
     timeGuests: 0,
     unlimitedGuests: 0,
+    happyHoursGuests: 0,
     package2Guests: 0,
     package3Guests: 0,
     phone: '',
@@ -417,6 +418,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       guests: 1,
       timeGuests: 0,
       unlimitedGuests: 0,
+      happyHoursGuests: 0,
       package2Guests: 0,
       package3Guests: 0,
       phone: '',
@@ -490,6 +492,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
           { kind: 'package', hours: 2, guests: Number(quickForm.package2Guests) || 0 },
           { kind: 'package', hours: 3, guests: Number(quickForm.package3Guests) || 0 },
           { kind: 'unlimited', guests: Number(quickForm.unlimitedGuests) || 0 },
+          { kind: 'happy_hours', guests: Number(quickForm.happyHoursGuests) || 0 },
         ]
       : [];
     const normalizedPackageGroups = normalizePackageGroups(packageGroups);
@@ -527,7 +530,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
         : (quickForm.comment || '').trim(),
       hasVR: !!quickForm.hasVR,
       hasShisha: !!quickForm.hasShisha,
-      isHappyHours: !!quickForm.isHappyHours,
+      isHappyHours: !!quickForm.isHappyHours || normalizedPackageGroups.some(group => group.kind === 'happy_hours'),
       smokingTimerEnd,
     };
 
@@ -555,6 +558,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
         guests: 1,
         timeGuests: 0,
         unlimitedGuests: 0,
+        happyHoursGuests: 0,
         package2Guests: 0,
         package3Guests: 0,
         phone: '',
@@ -736,6 +740,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     guests: number;
     timeGuests: number;
     unlimitedGuests: number;
+    happyHoursGuests: number;
     package2Guests: number;
     package3Guests: number;
     phone: string;
@@ -751,6 +756,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     guests: 1,
     timeGuests: 0,
     unlimitedGuests: 0,
+    happyHoursGuests: 0,
     package2Guests: 0,
     package3Guests: 0,
     phone: '',
@@ -1083,7 +1089,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     const parsedPackageComment = parsePackageComment(booking.comment);
     const packageGuestCounts = isMixedPackageZone(booking.branch, booking.tableId)
       ? getPackageGroupGuestCounts(parsedPackageComment.groups)
-      : { timeGuests: 0, package2Guests: 0, package3Guests: 0, unlimitedGuests: 0 };
+      : { timeGuests: 0, package2Guests: 0, package3Guests: 0, unlimitedGuests: 0, happyHoursGuests: 0 };
     setEditForm({
       name: booking.name,
       time: booking.time,
@@ -1091,6 +1097,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       guests: booking.guests,
       timeGuests: packageGuestCounts.timeGuests,
       unlimitedGuests: packageGuestCounts.unlimitedGuests,
+      happyHoursGuests: packageGuestCounts.happyHoursGuests,
       package2Guests: packageGuestCounts.package2Guests,
       package3Guests: packageGuestCounts.package3Guests,
       phone: booking.phone,
@@ -1180,6 +1187,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
           { kind: 'package', hours: 2, guests: Number(editForm.package2Guests) || 0 },
           { kind: 'package', hours: 3, guests: Number(editForm.package3Guests) || 0 },
           { kind: 'unlimited', guests: Number(editForm.unlimitedGuests) || 0 },
+          { kind: 'happy_hours', guests: Number(editForm.happyHoursGuests) || 0 },
         ] as PackageGroup[])
       : [];
     const hasTimedPackageGroup = editedPackageGroups.some(group => group.kind === 'time');
@@ -1203,7 +1211,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
         comment: nextComment,
         hasVR: editForm.hasVR,
         hasShisha: editForm.hasShisha,
-        isHappyHours: editForm.isHappyHours,
+        isHappyHours: editForm.isHappyHours || editedPackageGroups.some(group => group.kind === 'happy_hours'),
         smokingTimerEnd,
       }),
     });
@@ -1211,13 +1219,13 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     setBookings(prev => prev.map(b => b.id === editingBooking.id ? { ...updated, isActive: b.isActive } : b));
     setEditingBooking(null);
     setEditTimeTarget('time');
-    setEditForm({ name: '', time: '', endTime: '', guests: 1, timeGuests: 0, unlimitedGuests: 0, package2Guests: 0, package3Guests: 0, phone: '', comment: '', hasVR: false, hasShisha: false, isHappyHours: false, smokingTimer: false });
+    setEditForm({ name: '', time: '', endTime: '', guests: 1, timeGuests: 0, unlimitedGuests: 0, happyHoursGuests: 0, package2Guests: 0, package3Guests: 0, phone: '', comment: '', hasVR: false, hasShisha: false, isHappyHours: false, smokingTimer: false });
   };
 
   const handleCancelBookingEdit = () => {
     setEditingBooking(null);
     setEditTimeTarget('time');
-    setEditForm({ name: '', time: '', endTime: '', guests: 1, timeGuests: 0, unlimitedGuests: 0, package2Guests: 0, package3Guests: 0, phone: '', comment: '', hasVR: false, hasShisha: false, isHappyHours: false, smokingTimer: false });
+    setEditForm({ name: '', time: '', endTime: '', guests: 1, timeGuests: 0, unlimitedGuests: 0, happyHoursGuests: 0, package2Guests: 0, package3Guests: 0, phone: '', comment: '', hasVR: false, hasShisha: false, isHappyHours: false, smokingTimer: false });
   };
 
   const handleToggleActive = async (booking: Booking) => {
@@ -1639,10 +1647,11 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
   };
 
-  const applyMixedPackagePreset = (preset: 'time' | '2h' | '3h' | 'unlimited') => {
+  const applyMixedPackagePreset = (preset: PackagePreset) => {
     const next = buildPackagePreset(preset, quickForm.guests);
     const nextTimeGuests = next.groups.find(group => group.kind === 'time')?.guests || 0;
     const nextUnlimitedGuests = next.groups.find(group => group.kind === 'unlimited')?.guests || 0;
+    const nextHappyHoursGuests = next.groups.find(group => group.kind === 'happy_hours')?.guests || 0;
     const nextPackage2Guests = next.groups.find(group => group.kind === 'package' && group.hours === 2)?.guests || 0;
     const nextPackage3Guests = next.groups.find(group => group.kind === 'package' && group.hours === 3)?.guests || 0;
 
@@ -1650,18 +1659,21 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       ...prev,
       timeGuests: nextTimeGuests,
       unlimitedGuests: nextUnlimitedGuests,
+      happyHoursGuests: nextHappyHoursGuests,
       package2Guests: nextPackage2Guests,
       package3Guests: nextPackage3Guests,
+      isHappyHours: preset === 'happy_hours' ? true : prev.isHappyHours,
       endTime: next.endTime ?? prev.endTime,
     }));
     if (preset === 'time') setQuickTimeTarget('endTime');
-    if (preset === 'unlimited') setQuickTimeTarget('time');
+    if (preset === 'unlimited' || preset === 'happy_hours') setQuickTimeTarget('time');
   };
 
-  const applyMixedPackageEditPreset = (preset: 'time' | '2h' | '3h' | 'unlimited') => {
+  const applyMixedPackageEditPreset = (preset: PackagePreset) => {
     const next = buildPackagePreset(preset, editForm.guests);
     const nextTimeGuests = next.groups.find(group => group.kind === 'time')?.guests || 0;
     const nextUnlimitedGuests = next.groups.find(group => group.kind === 'unlimited')?.guests || 0;
+    const nextHappyHoursGuests = next.groups.find(group => group.kind === 'happy_hours')?.guests || 0;
     const nextPackage2Guests = next.groups.find(group => group.kind === 'package' && group.hours === 2)?.guests || 0;
     const nextPackage3Guests = next.groups.find(group => group.kind === 'package' && group.hours === 3)?.guests || 0;
 
@@ -1669,12 +1681,14 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       ...prev,
       timeGuests: nextTimeGuests,
       unlimitedGuests: nextUnlimitedGuests,
+      happyHoursGuests: nextHappyHoursGuests,
       package2Guests: nextPackage2Guests,
       package3Guests: nextPackage3Guests,
+      isHappyHours: preset === 'happy_hours' ? true : prev.isHappyHours,
       endTime: next.endTime ?? prev.endTime,
     }));
     if (preset === 'time') setEditTimeTarget('endTime');
-    if (preset === 'unlimited') setEditTimeTarget('time');
+    if (preset === 'unlimited' || preset === 'happy_hours') setEditTimeTarget('time');
   };
 
   const updateCardTariffForm = (bookingId: string, patch: Partial<CardTariffForm>) => {
@@ -1701,6 +1715,8 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
           ? { kind: 'package', hours: 3, guests, startedAt }
           : preset === 'unlimited'
             ? { kind: 'unlimited', guests }
+            : preset === 'happy_hours'
+              ? { kind: 'happy_hours', guests }
             : { kind: 'time', guests };
     const nextGroups = normalizePackageGroups([...parsedPackageComment.groups, addedGroup]);
     const nextComment = encodePackageComment(nextGroups, parsedPackageComment.comment);
@@ -1720,7 +1736,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
           comment: nextComment,
           hasVR: !!booking.hasVR,
           hasShisha: !!booking.hasShisha,
-          isHappyHours: !!booking.isHappyHours,
+          isHappyHours: !!booking.isHappyHours || preset === 'happy_hours',
           smokingTimerEnd: booking.smokingTimerEnd || null,
         }),
       });
@@ -2347,7 +2363,8 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     const editDistributedGuests = Number(editForm.timeGuests || 0)
       + Number(editForm.package2Guests || 0)
       + Number(editForm.package3Guests || 0)
-      + Number(editForm.unlimitedGuests || 0);
+      + Number(editForm.unlimitedGuests || 0)
+      + Number(editForm.happyHoursGuests || 0);
     
     return (
       <div className="modal" key="edit-booking-modal">
@@ -2398,6 +2415,9 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                     </button>
                     <button type="button" onClick={() => applyMixedPackageEditPreset('unlimited')}>
                       Все безлимит
+                    </button>
+                    <button type="button" onClick={() => applyMixedPackageEditPreset('happy_hours')}>
+                      Все счастливые часы
                     </button>
                   </div>
                 ) : (
@@ -2546,6 +2566,16 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                       type="number"
                       min="0"
                       value={editForm.unlimitedGuests}
+                      onChange={handleEditFormChange}
+                    />
+                  </label>
+                  <label className="mixed-package-counter">
+                    <span>Счастливые часы</span>
+                    <input
+                      name="happyHoursGuests"
+                      type="number"
+                      min="0"
+                      value={editForm.happyHoursGuests}
                       onChange={handleEditFormChange}
                     />
                   </label>
@@ -3273,6 +3303,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                               <option value="3h">3 ч</option>
                               <option value="time">по времени</option>
                               <option value="unlimited">безлимит</option>
+                              <option value="happy_hours">счаст. часы</option>
                             </select>
                             <button
                               type="button"
@@ -3293,7 +3324,9 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                               ? (packageEndDate ? formatPackageEndClock(packageEndDate) : 'после старта')
                               : group.kind === 'time'
                                 ? (b.endTime ? `до ${b.endTime}` : 'время не задано')
-                                : 'безлимит';
+                                : group.kind === 'happy_hours'
+                                  ? 'акция'
+                                  : 'безлимит';
                             const remainingText = packageEndDate
                               ? formatPackageRemaining(b, packageEndDate.toISOString())
                               : group.kind === 'time'
@@ -3309,7 +3342,9 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                               ? `По времени × ${group.guests}`
                               : group.kind === 'unlimited'
                                 ? `Безлимит × ${group.guests}`
-                                : `${group.hours} часа × ${group.guests}`;
+                                : group.kind === 'happy_hours'
+                                  ? `Счастливые часы × ${group.guests}`
+                                  : `${group.hours} часа × ${group.guests}`;
                             return (
                               <div
                                 key={`${group.kind}-${groupIndex}`}
@@ -3608,6 +3643,9 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                   <button type="button" onClick={() => applyMixedPackagePreset('unlimited')}>
                     Все безлимит
                   </button>
+                  <button type="button" onClick={() => applyMixedPackagePreset('happy_hours')}>
+                    Все счастливые часы
+                  </button>
                 </div>
               ) : (
                 <div style={{ display: 'flex', gap: '8px', margin: '8px 0' }}>
@@ -3670,7 +3708,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                 <div className="mixed-package-form">
                   <div className="mixed-package-total">
                     <span>Распределено</span>
-                    <strong>{Number(quickForm.timeGuests || 0) + Number(quickForm.package2Guests || 0) + Number(quickForm.package3Guests || 0) + Number(quickForm.unlimitedGuests || 0)} / {quickForm.guests}</strong>
+                    <strong>{Number(quickForm.timeGuests || 0) + Number(quickForm.package2Guests || 0) + Number(quickForm.package3Guests || 0) + Number(quickForm.unlimitedGuests || 0) + Number(quickForm.happyHoursGuests || 0)} / {quickForm.guests}</strong>
                   </div>
                   <label className="mixed-package-counter">
                     <span>По времени</span>
@@ -3709,6 +3747,16 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                       type="number"
                       min="0"
                       value={quickForm.unlimitedGuests}
+                      onChange={handleQuickFormChange}
+                    />
+                  </label>
+                  <label className="mixed-package-counter">
+                    <span>Счастливые часы</span>
+                    <input
+                      name="happyHoursGuests"
+                      type="number"
+                      min="0"
+                      value={quickForm.happyHoursGuests}
                       onChange={handleQuickFormChange}
                     />
                   </label>

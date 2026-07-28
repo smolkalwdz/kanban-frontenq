@@ -45,6 +45,7 @@ test('encodes and parses mixed time, package and unlimited groups', () => {
     { kind: 'package', hours: 2, guests: 3 },
     { kind: 'package', hours: 3, guests: 1 },
     { kind: 'unlimited', guests: 4 },
+    { kind: 'happy_hours', guests: 2 },
   ], 'смешанная бронь');
 
   expect(parsePackageComment(encoded)).toEqual({
@@ -53,6 +54,7 @@ test('encodes and parses mixed time, package and unlimited groups', () => {
       { kind: 'package', hours: 2, guests: 3 },
       { kind: 'package', hours: 3, guests: 1 },
       { kind: 'unlimited', guests: 4 },
+      { kind: 'happy_hours', guests: 2 },
     ],
     comment: 'смешанная бронь',
   });
@@ -86,7 +88,8 @@ test('calculates package end times and guest total', () => {
     { kind: 'package', hours: 2, guests: 3 },
     { kind: 'package', hours: 3, guests: 2 },
     { kind: 'unlimited', guests: 4 },
-  ])).toBe(10);
+    { kind: 'happy_hours', guests: 2 },
+  ])).toBe(12);
 });
 
 test('adds late tariff guests to booking guest count', () => {
@@ -126,6 +129,7 @@ test('package groups are optional and plain comments stay plain', () => {
 test('builds quick presets for all guests', () => {
   expect(buildPackagePreset('time', 5)).toEqual({ groups: [{ kind: 'time', guests: 5 }], endTime: undefined });
   expect(buildPackagePreset('unlimited', 5)).toEqual({ groups: [{ kind: 'unlimited', guests: 5 }], endTime: '' });
+  expect(buildPackagePreset('happy_hours', 5)).toEqual({ groups: [{ kind: 'happy_hours', guests: 5 }], endTime: '' });
   expect(buildPackagePreset('2h', 5)).toEqual({ groups: [{ kind: 'package', hours: 2, guests: 5 }], endTime: '' });
   expect(buildPackagePreset('3h', 5)).toEqual({ groups: [{ kind: 'package', hours: 3, guests: 5 }], endTime: '' });
 });
@@ -141,11 +145,13 @@ test('extracts guest counters for edit forms', () => {
     { kind: 'package', hours: 2, guests: 3 },
     { kind: 'package', hours: 3, guests: 1 },
     { kind: 'unlimited', guests: 4 },
+    { kind: 'happy_hours', guests: 2 },
   ])).toEqual({
     timeGuests: 2,
     package2Guests: 3,
     package3Guests: 1,
     unlimitedGuests: 4,
+    happyHoursGuests: 2,
   });
 });
 
