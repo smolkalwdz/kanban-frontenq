@@ -16,6 +16,19 @@ export type HourlyPackageGroup = {
 
 export type PackageGroup = TimedPackageGroup | UnlimitedPackageGroup | HourlyPackageGroup;
 
+export interface PackageGroupEndingSoonInfo {
+  endDate: Date;
+  minutesLeft: number;
+  label: string;
+  packageLabel: string;
+}
+
+export interface PackageGroupEndedInfo {
+  endDate: Date;
+  minutesOver: number;
+  packageLabel: string;
+}
+
 export interface ParsedPackageComment {
   groups: PackageGroup[];
   comment: string;
@@ -98,6 +111,53 @@ export function buildPackagePreset(preset: PackagePreset, guests: number): { gro
 export function getPackageEndDateFromActiveStart(activeStartedAt: string, hours: 2 | 3): Date {
   const startedAt = new Date(activeStartedAt);
   return new Date(startedAt.getTime() + hours * 60 * 60 * 1000);
+}
+
+export function getPackageGroupLabel(group: HourlyPackageGroup): string {
+  return `Пакет ${group.hours} часа`;
+}
+
+export function getPackageGroupEndingSoonInfo(
+  group: PackageGroup,
+  activeStartedAt: string | null | undefined,
+  now: Date,
+  warningWindowMinutes = 10
+): PackageGroupEndingSoonInfo | null {
+  if (group.kind !== 'package' || !activeStartedAt) return null;
+  const endDate = getPackageEndDateFromActiveStart(activeStartedAt, group.hours);
+  if (isNaN(endDate.getTime())) return null;
+
+  const diffMs = endDate.getTime() - now.getTime();
+  if (diffMs <= 0 || diffMs > warningWindowMinutes * 60 * 1000) return null;
+
+  const minutesLeft = Math.max(1, Math.ceil(diffMs / (60 * 1000)));
+  const packageLabel = getPackageGroupLabel(group);
+  return {
+    endDate,
+    minutesLeft,
+    label: `⏳ ПАКЕТ ${group.hours} ЧАСА ЗАКАНЧИВАЕТСЯ (${minutesLeft} мин)`,
+    packageLabel,
+  };
+}
+
+export function getPackageGroupEndedInfo(
+  group: PackageGroup,
+  activeStartedAt: string | null | undefined,
+  now: Date,
+  notificationWindowMinutes = 10
+): PackageGroupEndedInfo | null {
+  if (group.kind !== 'package' || !activeStartedAt) return null;
+  const endDate = getPackageEndDateFromActiveStart(activeStartedAt, group.hours);
+  if (isNaN(endDate.getTime())) return null;
+
+  const diffMs = endDate.getTime() - now.getTime();
+  if (diffMs > 0 || diffMs < -notificationWindowMinutes * 60 * 1000) return null;
+
+  return {
+    endDate,
+    minutesOver: Math.max(0, Math.floor(Math.abs(diffMs) / (60 * 1000))),
+    packageLabel: getPackageGroupLabel(group),
+  };
 }
 
 export function encodePackageComment(groups: PackageGroup[], comment: string): string {

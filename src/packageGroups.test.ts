@@ -5,6 +5,8 @@ import {
   getPackageEndDateFromActiveStart,
   getPackageGuestsTotal,
   getPackageGroupGuestCounts,
+  getPackageGroupEndedInfo,
+  getPackageGroupEndingSoonInfo,
   isMixedPackageZone,
   parsePackageComment,
 } from './packageGroups';
@@ -95,4 +97,40 @@ test('extracts guest counters for edit forms', () => {
     package3Guests: 1,
     unlimitedGuests: 4,
   });
+});
+
+test('detects package group ending soon from active start', () => {
+  const group = { kind: 'package' as const, hours: 2 as const, guests: 3 };
+  const now = new Date('2026-07-28T19:51:00.000Z');
+
+  expect(getPackageGroupEndingSoonInfo(
+    group,
+    '2026-07-28T18:00:00.000Z',
+    now
+  )).toEqual({
+    endDate: new Date('2026-07-28T20:00:00.000Z'),
+    minutesLeft: 9,
+    label: '⏳ ПАКЕТ 2 ЧАСА ЗАКАНЧИВАЕТСЯ (9 мин)',
+    packageLabel: 'Пакет 2 часа',
+  });
+});
+
+test('detects ended package group only inside notification window', () => {
+  const group = { kind: 'package' as const, hours: 3 as const, guests: 2 };
+
+  expect(getPackageGroupEndedInfo(
+    group,
+    '2026-07-28T18:00:00.000Z',
+    new Date('2026-07-28T21:03:00.000Z')
+  )).toEqual({
+    endDate: new Date('2026-07-28T21:00:00.000Z'),
+    minutesOver: 3,
+    packageLabel: 'Пакет 3 часа',
+  });
+
+  expect(getPackageGroupEndedInfo(
+    group,
+    '2026-07-28T18:00:00.000Z',
+    new Date('2026-07-28T21:11:00.000Z')
+  )).toBeNull();
 });

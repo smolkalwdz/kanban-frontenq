@@ -11,6 +11,8 @@ import {
   buildPackagePreset,
   encodePackageComment,
   getPackageEndDateFromActiveStart,
+  getPackageGroupEndedInfo,
+  getPackageGroupEndingSoonInfo,
   getPackageGroupGuestCounts,
   isMixedPackageZone,
   normalizePackageGroups,
@@ -1458,6 +1460,14 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     return { minutesOver: Math.max(0, Math.floor(Math.abs(diffMs) / (60 * 1000))) };
   };
 
+  const getPackageEndingSoonInfos = (booking: Booking): NonNullable<ReturnType<typeof getPackageGroupEndingSoonInfo>>[] => {
+    if (!booking.isActive || !booking.activeStartedAt || !isMixedPackageZone(booking.branch, booking.tableId)) return [];
+    const groups = parsePackageComment(booking.comment).groups;
+    return groups
+      .map(group => getPackageGroupEndingSoonInfo(group, booking.activeStartedAt, getNow()))
+      .filter((info): info is NonNullable<typeof info> => info !== null);
+  };
+
   const notifiedEndingBookingsRef = useRef<Set<string>>(
     (() => {
       try {
@@ -1880,6 +1890,90 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     return () => clearInterval(interval);
   }, [bookings, currentBranch, tables]);
 
+  // Уведомление за 10 минут до окончания пакетных групп 2/3 часа
+  useEffect(() => {
+    const checkPackageEndingAndNotify = async () => {
+      const notified = notifiedEndingBookingsRef.current;
+      const testTimeOverride = localStorage.getItem('appTimeOverride');
+
+      for (const booking of bookings) {
+        if (booking.branch !== currentBranch || !booking.isActive || !booking.activeStartedAt) continue;
+        if (!isMixedPackageZone(booking.branch, booking.tableId)) continue;
+
+        const packageGroups = parsePackageComment(booking.comment).groups;
+        const table = tables.find(t => String(t.id) === String(booking.tableId));
+        const zoneName = table?.name || `Зона ${booking.tableId}`;
+
+        for (const group of packageGroups) {
+          if (group.kind !== 'package') continue;
+          const endingSoon = getPackageGroupEndingSoonInfo(group, booking.activeStartedAt, getNow());
+          if (!endingSoon) continue;
+
+          const endTime = formatPackageEndClock(endingSoon.endDate);
+          const notificationKey = `${booking.id}_package_${group.hours}h_${booking.activeStartedAt}`;
+          if (notified.has(notificationKey)) continue;
+
+          notified.add(notificationKey);
+          saveNotifiedEndingBookings(notified);
+
+          try {
+            const payload: any = {
+              branch: booking.branch,
+              zoneName,
+              guestName: booking.name,
+              endTime,
+              minutesLeft: endingSoon.minutesLeft,
+              packageLabel: `${endingSoon.packageLabel} × ${group.guests}`,
+            };
+            if (testTimeOverride) {
+              payload.testDate = testTimeOverride;
+            }
+
+            const response = await fetch(`${API_URL}/api/telegram/notify-booking-ending`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+              console.error('❌ Ошибка отправки уведомления о завершении пакетной группы');
+            }
+          } catch (error) {
+            console.error('❌ Ошибка отправки уведомления о завершении пакетной группы:', error);
+          }
+
+          try {
+            await fetch(`${API_URL}/api/tv/notify`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                tableId: booking.tableId,
+                text: `${endingSoon.packageLabel} заканчивается через ${endingSoon.minutesLeft} мин`,
+                durationSec: 15
+              })
+            });
+          } catch (error) {
+            console.error('❌ Ошибка отправки TV-уведомления (package ending):', error);
+          }
+        }
+      }
+
+      const validPrefixes = new Set(bookings.map(b => `${b.id}_`));
+      const cleaned = new Set(
+        Array.from(notified).filter(key =>
+          Array.from(validPrefixes).some(prefix => key.startsWith(prefix))
+        )
+      );
+      if (cleaned.size !== notified.size) {
+        notifiedEndingBookingsRef.current = cleaned;
+        saveNotifiedEndingBookings(cleaned);
+      }
+    };
+
+    const interval = setInterval(checkPackageEndingAndNotify, 15 * 1000);
+    return () => clearInterval(interval);
+  }, [bookings, currentBranch, tables]);
+
   // Уведомление в момент окончания брони (поле "До времени")
   useEffect(() => {
     const checkBookingEndedAndNotify = async () => {
@@ -1953,6 +2047,90 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     };
 
     const interval = setInterval(checkBookingEndedAndNotify, 15 * 1000);
+    return () => clearInterval(interval);
+  }, [bookings, currentBranch, tables]);
+
+  // Уведомление в момент окончания пакетных групп 2/3 часа
+  useEffect(() => {
+    const checkPackageEndedAndNotify = async () => {
+      const notified = notifiedEndedBookingsRef.current;
+      const testTimeOverride = localStorage.getItem('appTimeOverride');
+
+      for (const booking of bookings) {
+        if (booking.branch !== currentBranch || !booking.isActive || !booking.activeStartedAt) continue;
+        if (!isMixedPackageZone(booking.branch, booking.tableId)) continue;
+
+        const packageGroups = parsePackageComment(booking.comment).groups;
+        const table = tables.find(t => String(t.id) === String(booking.tableId));
+        const zoneName = table?.name || `Зона ${booking.tableId}`;
+
+        for (const group of packageGroups) {
+          if (group.kind !== 'package') continue;
+          const endedInfo = getPackageGroupEndedInfo(group, booking.activeStartedAt, getNow());
+          if (!endedInfo) continue;
+
+          const endTime = formatPackageEndClock(endedInfo.endDate);
+          const notificationKey = `${booking.id}_package_${group.hours}h_${booking.activeStartedAt}`;
+          if (notified.has(notificationKey)) continue;
+
+          notified.add(notificationKey);
+          saveNotifiedEndedBookings(notified);
+
+          try {
+            const payload: any = {
+              branch: booking.branch,
+              zoneName,
+              guestName: booking.name,
+              endTime,
+              minutesOver: endedInfo.minutesOver,
+              packageLabel: `${endedInfo.packageLabel} × ${group.guests}`,
+            };
+            if (testTimeOverride) {
+              payload.testDate = testTimeOverride;
+            }
+
+            const response = await fetch(`${API_URL}/api/telegram/notify-booking-ended`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+              console.error('❌ Ошибка отправки уведомления об окончании пакетной группы');
+            }
+          } catch (error) {
+            console.error('❌ Ошибка отправки уведомления об окончании пакетной группы:', error);
+          }
+
+          try {
+            await fetch(`${API_URL}/api/tv/notify`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                tableId: booking.tableId,
+                text: `${endedInfo.packageLabel} закончился.\nДля продления подойдите на ресепшен`,
+                durationSec: null
+              })
+            });
+          } catch (error) {
+            console.error('❌ Ошибка отправки TV-уведомления (package ended):', error);
+          }
+        }
+      }
+
+      const validPrefixes = new Set(bookings.map(b => `${b.id}_`));
+      const cleaned = new Set(
+        Array.from(notified).filter(key =>
+          Array.from(validPrefixes).some(prefix => key.startsWith(prefix))
+        )
+      );
+      if (cleaned.size !== notified.size) {
+        notifiedEndedBookingsRef.current = cleaned;
+        saveNotifiedEndedBookings(cleaned);
+      }
+    };
+
+    const interval = setInterval(checkPackageEndedAndNotify, 15 * 1000);
     return () => clearInterval(interval);
   }, [bookings, currentBranch, tables]);
 
@@ -2845,6 +3023,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                     const smokingTimerText = formatSmokingTimer(b);
                     const isTimerExpired = isSmokingTimerExpired(b);
                     const endingSoonInfo = getEndingSoonInfo(b);
+                    const packageEndingSoonInfos = getPackageEndingSoonInfos(b);
                     const isOverdue = b.isActive && !!getEndedInfo(b);
                     const activeDurationText = formatActiveDuration(b);
                     const parsedPackageComment = parsePackageComment(b.comment);
@@ -2876,6 +3055,11 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                       {endingSoonInfo && (
                         <div className="booking-ending-warning">{endingSoonInfo.label}</div>
                       )}
+                      {packageEndingSoonInfos.map(info => (
+                        <div key={info.packageLabel} className="booking-ending-warning">
+                          {info.label}
+                        </div>
+                      ))}
                       <div className="booking-name">{b.name}</div>
                       <div className="booking-guests">{b.guests} чел.</div>
                       {packageGroups.length > 0 && (
