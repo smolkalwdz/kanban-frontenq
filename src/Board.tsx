@@ -11,6 +11,7 @@ import {
   buildPackagePreset,
   encodePackageComment,
   getPackageEndDateFromActiveStart,
+  getPackageGroupGuestCounts,
   isMixedPackageZone,
   normalizePackageGroups,
   parsePackageComment,
@@ -709,6 +710,10 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     time: string;
     endTime: string;
     guests: number;
+    timeGuests: number;
+    unlimitedGuests: number;
+    package2Guests: number;
+    package3Guests: number;
     phone: string;
     comment: string;
     hasVR: boolean;
@@ -720,6 +725,10 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     time: '',
     endTime: '',
     guests: 1,
+    timeGuests: 0,
+    unlimitedGuests: 0,
+    package2Guests: 0,
+    package3Guests: 0,
     phone: '',
     comment: '',
     hasVR: false,
@@ -1048,11 +1057,18 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     // Проверяем, есть ли активный таймер курения
     const hasActiveTimer = booking.smokingTimerEnd && new Date(booking.smokingTimerEnd) > getNow();
     const parsedPackageComment = parsePackageComment(booking.comment);
+    const packageGuestCounts = isMixedPackageZone(booking.branch, booking.tableId)
+      ? getPackageGroupGuestCounts(parsedPackageComment.groups)
+      : { timeGuests: 0, package2Guests: 0, package3Guests: 0, unlimitedGuests: 0 };
     setEditForm({
       name: booking.name,
       time: booking.time,
       endTime: booking.endTime || '',
       guests: booking.guests,
+      timeGuests: packageGuestCounts.timeGuests,
+      unlimitedGuests: packageGuestCounts.unlimitedGuests,
+      package2Guests: packageGuestCounts.package2Guests,
+      package3Guests: packageGuestCounts.package3Guests,
       phone: booking.phone,
       comment: parsedPackageComment.comment || '',
       hasVR: booking.hasVR || false,
@@ -1133,9 +1149,21 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       saveNotifiedEndedBookings(updatedEndedNotified);
     }
 
-    const existingPackageComment = parsePackageComment(editingBooking.comment);
-    const nextComment = existingPackageComment.groups.length
-      ? encodePackageComment(existingPackageComment.groups, editForm.comment)
+    const mixedPackageBooking = isMixedPackageZone(editingBooking.branch, editingBooking.tableId);
+    const editedPackageGroups = mixedPackageBooking
+      ? normalizePackageGroups([
+          { kind: 'time', guests: Number(editForm.timeGuests) || 0 },
+          { kind: 'package', hours: 2, guests: Number(editForm.package2Guests) || 0 },
+          { kind: 'package', hours: 3, guests: Number(editForm.package3Guests) || 0 },
+          { kind: 'unlimited', guests: Number(editForm.unlimitedGuests) || 0 },
+        ] as PackageGroup[])
+      : [];
+    const hasTimedPackageGroup = editedPackageGroups.some(group => group.kind === 'time');
+    const nextEndTime = mixedPackageBooking && editedPackageGroups.length > 0 && !hasTimedPackageGroup
+      ? ''
+      : editForm.endTime.trim();
+    const nextComment = mixedPackageBooking
+      ? encodePackageComment(editedPackageGroups, editForm.comment)
       : editForm.comment.trim();
 
     const res = await fetch(`${API_URL}/api/bookings/${editingBooking.id}`, {
@@ -1144,7 +1172,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       body: JSON.stringify({
         name: editForm.name.trim(),
         time: editForm.time.trim(),
-        endTime: editForm.endTime.trim() || null,
+        endTime: nextEndTime || null,
         guests: editForm.guests,
         phone: editForm.phone.trim(),
         source: 'Лично' as SourceType,
@@ -1159,13 +1187,13 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     setBookings(prev => prev.map(b => b.id === editingBooking.id ? { ...updated, isActive: b.isActive } : b));
     setEditingBooking(null);
     setEditTimeTarget('time');
-    setEditForm({ name: '', time: '', endTime: '', guests: 1, phone: '', comment: '', hasVR: false, hasShisha: false, isHappyHours: false, smokingTimer: false });
+    setEditForm({ name: '', time: '', endTime: '', guests: 1, timeGuests: 0, unlimitedGuests: 0, package2Guests: 0, package3Guests: 0, phone: '', comment: '', hasVR: false, hasShisha: false, isHappyHours: false, smokingTimer: false });
   };
 
   const handleCancelBookingEdit = () => {
     setEditingBooking(null);
     setEditTimeTarget('time');
-    setEditForm({ name: '', time: '', endTime: '', guests: 1, phone: '', comment: '', hasVR: false, hasShisha: false, isHappyHours: false, smokingTimer: false });
+    setEditForm({ name: '', time: '', endTime: '', guests: 1, timeGuests: 0, unlimitedGuests: 0, package2Guests: 0, package3Guests: 0, phone: '', comment: '', hasVR: false, hasShisha: false, isHappyHours: false, smokingTimer: false });
   };
 
   const handleToggleActive = async (booking: Booking) => {
@@ -1582,6 +1610,25 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     if (preset === 'unlimited') setQuickTimeTarget('time');
   };
 
+  const applyMixedPackageEditPreset = (preset: 'time' | '2h' | '3h' | 'unlimited') => {
+    const next = buildPackagePreset(preset, editForm.guests);
+    const nextTimeGuests = next.groups.find(group => group.kind === 'time')?.guests || 0;
+    const nextUnlimitedGuests = next.groups.find(group => group.kind === 'unlimited')?.guests || 0;
+    const nextPackage2Guests = next.groups.find(group => group.kind === 'package' && group.hours === 2)?.guests || 0;
+    const nextPackage3Guests = next.groups.find(group => group.kind === 'package' && group.hours === 3)?.guests || 0;
+
+    setEditForm(prev => ({
+      ...prev,
+      timeGuests: nextTimeGuests,
+      unlimitedGuests: nextUnlimitedGuests,
+      package2Guests: nextPackage2Guests,
+      package3Guests: nextPackage3Guests,
+      endTime: next.endTime ?? prev.endTime,
+    }));
+    if (preset === 'time') setEditTimeTarget('endTime');
+    if (preset === 'unlimited') setEditTimeTarget('time');
+  };
+
   // Уведомление о завершении таймера курения
   useEffect(() => {
     const checkAndNotify = async () => {
@@ -1944,6 +1991,11 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   // Модальное окно редактирования брони - мемоизированное для предотвращения потери фокуса
   const EditBookingModal = useMemo(() => {
     if (!editingBooking) return null;
+    const isMixedPackageEditing = isMixedPackageZone(editingBooking.branch, editingBooking.tableId);
+    const editDistributedGuests = Number(editForm.timeGuests || 0)
+      + Number(editForm.package2Guests || 0)
+      + Number(editForm.package3Guests || 0)
+      + Number(editForm.unlimitedGuests || 0);
     
     return (
       <div className="modal" key="edit-booking-modal">
@@ -1981,31 +2033,48 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                   style={{ marginBottom: '4px' }}
                   placeholder="До времени"
                 />
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                  {[2, 3].map(hours => (
-                    <button
-                      key={hours}
-                      type="button"
-                      disabled={!editForm.time}
-                      onClick={() =>
-                        setEditForm(prev => ({ ...prev, endTime: addHoursToTime(prev.time, hours) }))
-                      }
-                      style={{
-                        background: '#2563eb',
-                        color: '#ffffff',
-                        border: 'none',
-                        borderRadius: '8px',
-                        padding: '14px 22px',
-                        fontSize: '22px',
-                        fontWeight: 700,
-                        opacity: editForm.time ? 1 : 0.5,
-                        cursor: editForm.time ? 'pointer' : 'not-allowed'
-                      }}
-                    >
-                      Пакет {hours} часа
+                {isMixedPackageEditing ? (
+                  <div className="mixed-package-presets">
+                    <button type="button" onClick={() => applyMixedPackageEditPreset('time')}>
+                      Все по времени
                     </button>
-                  ))}
-                </div>
+                    <button type="button" onClick={() => applyMixedPackageEditPreset('2h')}>
+                      Все 2 часа
+                    </button>
+                    <button type="button" onClick={() => applyMixedPackageEditPreset('3h')}>
+                      Все 3 часа
+                    </button>
+                    <button type="button" onClick={() => applyMixedPackageEditPreset('unlimited')}>
+                      Все безлимит
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                    {[2, 3].map(hours => (
+                      <button
+                        key={hours}
+                        type="button"
+                        disabled={!editForm.time}
+                        onClick={() =>
+                          setEditForm(prev => ({ ...prev, endTime: addHoursToTime(prev.time, hours) }))
+                        }
+                        style={{
+                          background: '#2563eb',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '8px',
+                          padding: '14px 22px',
+                          fontSize: '22px',
+                          fontWeight: 700,
+                          opacity: editForm.time ? 1 : 0.5,
+                          cursor: editForm.time ? 'pointer' : 'not-allowed'
+                        }}
+                      >
+                        Пакет {hours} часа
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <div className="time-buttons">
                   {[
                     { time: '14:00', label: '14' },
@@ -2082,6 +2151,57 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                 onChange={handleEditFormChange}
                 required
               />
+              {isMixedPackageEditing ? (
+                <div className="mixed-package-form">
+                  <div className="mixed-package-total">
+                    <span>Распределено</span>
+                    <strong>{editDistributedGuests} / {editForm.guests}</strong>
+                  </div>
+                  <label className="mixed-package-counter">
+                    <span>По времени</span>
+                    <input
+                      name="timeGuests"
+                      type="number"
+                      min="0"
+                      value={editForm.timeGuests}
+                      onChange={handleEditFormChange}
+                    />
+                  </label>
+                  <label className="mixed-package-counter">
+                    <span>Пакет 2 часа</span>
+                    <input
+                      name="package2Guests"
+                      type="number"
+                      min="0"
+                      value={editForm.package2Guests}
+                      onChange={handleEditFormChange}
+                    />
+                  </label>
+                  <label className="mixed-package-counter">
+                    <span>Пакет 3 часа</span>
+                    <input
+                      name="package3Guests"
+                      type="number"
+                      min="0"
+                      value={editForm.package3Guests}
+                      onChange={handleEditFormChange}
+                    />
+                  </label>
+                  <label className="mixed-package-counter">
+                    <span>Безлимит</span>
+                    <input
+                      name="unlimitedGuests"
+                      type="number"
+                      min="0"
+                      value={editForm.unlimitedGuests}
+                      onChange={handleEditFormChange}
+                    />
+                  </label>
+                  <div className="mixed-package-hint">
+                    При сохранении карточка обновит статусы по этим группам. Для “по времени” используй поле “до”.
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <div>
@@ -2155,7 +2275,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
         </div>
       </div>
     );
-  }, [editingBooking, editForm, handleEditFormChange, handleSaveBookingEdit, handleCancelBookingEdit]);
+  }, [editingBooking, editForm, handleEditFormChange, handleSaveBookingEdit, handleCancelBookingEdit, applyMixedPackageEditPreset]);
 
   // Обработчики для кнопок карточек
   const toggleActiveHandler = (booking: Booking) => (e: React.MouseEvent) => {

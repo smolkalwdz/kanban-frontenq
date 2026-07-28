@@ -69,6 +69,24 @@ export function getPackageGuestsTotal(groups: PackageGroup[]): number {
   return normalizePackageGroups(groups).reduce((sum, group) => sum + group.guests, 0);
 }
 
+export function getPackageGroupGuestCounts(groups: PackageGroup[]): {
+  timeGuests: number;
+  package2Guests: number;
+  package3Guests: number;
+  unlimitedGuests: number;
+} {
+  return normalizePackageGroups(groups).reduce(
+    (counts, group) => {
+      if (group.kind === 'time') counts.timeGuests += group.guests;
+      if (group.kind === 'unlimited') counts.unlimitedGuests += group.guests;
+      if (group.kind === 'package' && group.hours === 2) counts.package2Guests += group.guests;
+      if (group.kind === 'package' && group.hours === 3) counts.package3Guests += group.guests;
+      return counts;
+    },
+    { timeGuests: 0, package2Guests: 0, package3Guests: 0, unlimitedGuests: 0 }
+  );
+}
+
 export function buildPackagePreset(preset: PackagePreset, guests: number): { groups: PackageGroup[]; endTime?: string } {
   const guestCount = Math.max(0, Number(guests) || 0);
   if (preset === '2h') return { groups: [{ kind: 'package', hours: 2, guests: guestCount }], endTime: '' };

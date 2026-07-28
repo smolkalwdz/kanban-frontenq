@@ -4,6 +4,7 @@ import {
   encodePackageComment,
   getPackageEndDateFromActiveStart,
   getPackageGuestsTotal,
+  getPackageGroupGuestCounts,
   isMixedPackageZone,
   parsePackageComment,
 } from './packageGroups';
@@ -80,4 +81,18 @@ test('builds quick presets for all guests', () => {
 test('calculates package end from active start, not from booking time', () => {
   expect(getPackageEndDateFromActiveStart('2026-07-28T18:10:00.000Z', 2).toISOString())
     .toBe('2026-07-28T20:10:00.000Z');
+});
+
+test('extracts guest counters for edit forms', () => {
+  expect(getPackageGroupGuestCounts([
+    { kind: 'time', guests: 2 },
+    { kind: 'package', hours: 2, guests: 3 },
+    { kind: 'package', hours: 3, guests: 1 },
+    { kind: 'unlimited', guests: 4 },
+  ])).toEqual({
+    timeGuests: 2,
+    package2Guests: 3,
+    package3Guests: 1,
+    unlimitedGuests: 4,
+  });
 });
