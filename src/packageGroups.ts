@@ -101,6 +101,12 @@ export function getGuestCountAfterTariffAddition(currentGuests: number, addedGue
   return current + added;
 }
 
+export function normalizeTariffGuestInput(value: string | number): number {
+  const parsed = Math.floor(Number(value));
+  if (!Number.isFinite(parsed) || parsed < 1) return 1;
+  return Math.min(parsed, 99);
+}
+
 export function getGuestCountAfterTariffRemoval(currentGuests: number, removedGroup: PackageGroup): number {
   const current = Math.max(0, Number(currentGuests) || 0);
   const removed = Math.max(0, Number(removedGroup?.guests) || 0);

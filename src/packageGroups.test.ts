@@ -9,6 +9,7 @@ import {
   getPackageGroupEndingSoonInfo,
   getGuestCountAfterTariffAddition,
   getGuestCountAfterTariffRemoval,
+  normalizeTariffGuestInput,
   removePackageGroupAt,
   formatPackageRemainingText,
   isMixedPackageZone,
@@ -92,6 +93,14 @@ test('adds late tariff guests to booking guest count', () => {
   expect(getGuestCountAfterTariffAddition(4, 1)).toBe(5);
   expect(getGuestCountAfterTariffAddition(4, 3)).toBe(7);
   expect(getGuestCountAfterTariffAddition(4, 0)).toBe(4);
+});
+
+test('normalizes tariff guest input before saving', () => {
+  expect(normalizeTariffGuestInput('4')).toBe(4);
+  expect(normalizeTariffGuestInput(3)).toBe(3);
+  expect(normalizeTariffGuestInput('')).toBe(1);
+  expect(normalizeTariffGuestInput('0')).toBe(1);
+  expect(normalizeTariffGuestInput('120')).toBe(99);
 });
 
 test('removes selected tariff group and subtracts its guests', () => {

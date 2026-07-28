@@ -20,6 +20,7 @@ import {
   getPackageGroupGuestCounts,
   isMixedPackageZone,
   normalizePackageGroups,
+  normalizeTariffGuestInput,
   parsePackageComment,
   removePackageGroupAt,
 } from './packageGroups';
@@ -126,7 +127,7 @@ const PACKAGE_ENDING_WARNING_MINUTES = [10, 5];
 const DISMISSED_PACKAGE_ENDED_STORAGE_KEY = 'dismissedPackageEndedNotices';
 
 type CardTariffForm = {
-  guests: number;
+  guests: string;
   preset: PackagePreset;
 };
 
@@ -1680,7 +1681,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     setCardTariffForms(prev => ({
       ...prev,
       [bookingId]: {
-        guests: prev[bookingId]?.guests || 1,
+        guests: prev[bookingId]?.guests || '1',
         preset: prev[bookingId]?.preset || '2h',
         ...patch,
       },
@@ -1688,8 +1689,8 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   };
 
   const handleAddTariffToBooking = async (booking: Booking) => {
-    const form = cardTariffForms[booking.id] || { guests: 1, preset: '2h' as PackagePreset };
-    const guests = Math.max(1, Math.min(Number(form.guests) || 1, 99));
+    const form = cardTariffForms[booking.id] || { guests: '1', preset: '2h' as PackagePreset };
+    const guests = normalizeTariffGuestInput(form.guests);
     const preset = form.preset || '2h';
     const parsedPackageComment = parsePackageComment(booking.comment);
     const startedAt = getNow().toISOString();
@@ -1738,7 +1739,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
             tableId: updated.tableId !== undefined ? Number(updated.tableId) : item.tableId,
           }
         : item));
-      updateCardTariffForm(booking.id, { guests: 1 });
+      updateCardTariffForm(booking.id, { guests: '1' });
     } catch (error) {
       console.error('❌ Ошибка добавления тарифа в карточке:', error);
     }
@@ -3206,7 +3207,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                       : [];
                     const visibleComment = packageGroups.length ? parsedPackageComment.comment : b.comment;
                     const mixedPackageCard = isMixedPackageZone(table.branch, table.id);
-                    const cardTariffForm = cardTariffForms[b.id] || { guests: 1, preset: '2h' as PackagePreset };
+                    const cardTariffForm = cardTariffForms[b.id] || { guests: '1', preset: '2h' as PackagePreset };
 
                     return (
                 <div
@@ -3256,7 +3257,8 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                               min="1"
                               max="99"
                               value={cardTariffForm.guests}
-                              onChange={(e) => updateCardTariffForm(b.id, { guests: Number(e.target.value) || 1 })}
+                              onChange={(e) => updateCardTariffForm(b.id, { guests: e.target.value })}
+                              onBlur={(e) => updateCardTariffForm(b.id, { guests: String(normalizeTariffGuestInput(e.target.value)) })}
                               aria-label="Количество гостей для тарифа"
                             />
                             <span className="booking-add-tariff-unit">чел</span>
