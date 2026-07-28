@@ -3200,34 +3200,38 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                           onClick={(e) => e.stopPropagation()}
                           onMouseDown={(e) => e.stopPropagation()}
                         >
-                          <span className="booking-add-tariff-label">+ тариф</span>
-                          <input
-                            type="number"
-                            min="1"
-                            max="99"
-                            value={cardTariffForm.guests}
-                            onChange={(e) => updateCardTariffForm(b.id, { guests: Number(e.target.value) || 1 })}
-                            aria-label="Количество гостей для тарифа"
-                          />
-                          <span className="booking-add-tariff-unit">чел</span>
-                          <select
-                            value={cardTariffForm.preset}
-                            onChange={(e) => updateCardTariffForm(b.id, { preset: e.target.value as PackagePreset })}
-                            aria-label="Тариф"
-                          >
-                            <option value="2h">2 ч</option>
-                            <option value="3h">3 ч</option>
-                            <option value="time">по времени</option>
-                            <option value="unlimited">безлимит</option>
-                          </select>
-                          <button
-                            type="button"
-                            onClick={() => handleAddTariffToBooking(b)}
-                            disabled={!b.isActive}
-                            title={b.isActive ? 'Добавить тариф с текущего момента' : 'Сначала нажми активировать бронь'}
-                          >
-                            +
-                          </button>
+                          <div className="booking-add-tariff-row">
+                            <span className="booking-add-tariff-label">+ тариф</span>
+                            <input
+                              type="number"
+                              min="1"
+                              max="99"
+                              value={cardTariffForm.guests}
+                              onChange={(e) => updateCardTariffForm(b.id, { guests: Number(e.target.value) || 1 })}
+                              aria-label="Количество гостей для тарифа"
+                            />
+                            <span className="booking-add-tariff-unit">чел</span>
+                          </div>
+                          <div className="booking-add-tariff-row">
+                            <select
+                              value={cardTariffForm.preset}
+                              onChange={(e) => updateCardTariffForm(b.id, { preset: e.target.value as PackagePreset })}
+                              aria-label="Тариф"
+                            >
+                              <option value="2h">2 ч</option>
+                              <option value="3h">3 ч</option>
+                              <option value="time">по времени</option>
+                              <option value="unlimited">безлимит</option>
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => handleAddTariffToBooking(b)}
+                              disabled={!b.isActive}
+                              title={b.isActive ? 'Добавить тариф с текущего момента' : 'Сначала нажми активировать бронь'}
+                            >
+                              +
+                            </button>
+                          </div>
                         </div>
                       )}
                       {packageGroups.length > 0 && (
