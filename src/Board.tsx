@@ -11,6 +11,7 @@ import {
   PackageDurationUnit,
   buildPackagePreset,
   encodePackageComment,
+  formatPackageRemainingText,
   getPackageEndDateFromActiveStart,
   getPackageGroupEndedInfo,
   getPackageGroupEndingSoonInfo,
@@ -1588,14 +1589,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     const endDate = new Date(endTime);
     if (isNaN(endDate.getTime())) return '';
     const diffMs = endDate.getTime() - getNow().getTime();
-    if (diffMs <= 0) return 'завершён';
-
-    const totalMinutes = Math.ceil(diffMs / (60 * 1000));
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    return hours > 0
-      ? `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
-      : `${minutes} мин`;
+    return formatPackageRemainingText(diffMs, packageDurationUnit);
   };
 
   const formatTimedGroupRemaining = (booking: Booking): string => {

@@ -170,6 +170,24 @@ export function getPackageGroupEndedInfo(
   };
 }
 
+export function formatPackageRemainingText(diffMs: number, durationUnit: PackageDurationUnit = 'hours'): string {
+  if (diffMs <= 0) return 'завершён';
+
+  if (durationUnit === 'minutes') {
+    const totalSeconds = Math.ceil(diffMs / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  }
+
+  const totalMinutes = Math.ceil(diffMs / (60 * 1000));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return hours > 0
+    ? `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+    : `${minutes} мин`;
+}
+
 export function encodePackageComment(groups: PackageGroup[], comment: string): string {
   const normalized = normalizePackageGroups(groups);
   const cleanComment = String(comment || '').trim();

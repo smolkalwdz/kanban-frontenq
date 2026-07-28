@@ -7,6 +7,7 @@ import {
   getPackageGroupGuestCounts,
   getPackageGroupEndedInfo,
   getPackageGroupEndingSoonInfo,
+  formatPackageRemainingText,
   isMixedPackageZone,
   parsePackageComment,
 } from './packageGroups';
@@ -165,4 +166,10 @@ test('detects package notifications in minutes for short test mode', () => {
     10,
     'minutes'
   )?.minutesOver).toBe(0);
+});
+
+test('formats short test package timers with seconds', () => {
+  expect(formatPackageRemainingText(97 * 1000, 'minutes')).toBe('01:37');
+  expect(formatPackageRemainingText(8 * 1000, 'minutes')).toBe('00:08');
+  expect(formatPackageRemainingText(61 * 60 * 1000, 'hours')).toBe('01:01');
 });
