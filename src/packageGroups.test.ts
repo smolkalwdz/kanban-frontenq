@@ -7,6 +7,7 @@ import {
   getPackageGroupGuestCounts,
   getPackageGroupEndedInfo,
   getPackageGroupEndingSoonInfo,
+  getGuestCountAfterTariffAddition,
   formatPackageRemainingText,
   isMixedPackageZone,
   parsePackageComment,
@@ -83,6 +84,12 @@ test('calculates package end times and guest total', () => {
     { kind: 'package', hours: 3, guests: 2 },
     { kind: 'unlimited', guests: 4 },
   ])).toBe(10);
+});
+
+test('adds late tariff guests to booking guest count', () => {
+  expect(getGuestCountAfterTariffAddition(4, 1)).toBe(5);
+  expect(getGuestCountAfterTariffAddition(4, 3)).toBe(7);
+  expect(getGuestCountAfterTariffAddition(4, 0)).toBe(4);
 });
 
 test('package groups are optional and plain comments stay plain', () => {

@@ -12,6 +12,7 @@ import {
   buildPackagePreset,
   encodePackageComment,
   formatPackageRemainingText,
+  getGuestCountAfterTariffAddition,
   getPackageGroupEndDate,
   getPackageGroupEndedInfo,
   getPackageGroupEndingSoonInfo,
@@ -1700,6 +1701,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
             : { kind: 'time', guests };
     const nextGroups = normalizePackageGroups([...parsedPackageComment.groups, addedGroup]);
     const nextComment = encodePackageComment(nextGroups, parsedPackageComment.comment);
+    const nextGuestCount = getGuestCountAfterTariffAddition(booking.guests, guests);
 
     try {
       const response = await fetch(`${API_URL}/api/bookings/${booking.id}`, {
@@ -1709,7 +1711,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
           name: booking.name,
           time: booking.time,
           endTime: booking.endTime || null,
-          guests: booking.guests,
+          guests: nextGuestCount,
           phone: booking.phone,
           source: booking.source,
           comment: nextComment,
@@ -1730,6 +1732,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
         ? {
             ...item,
             ...updated,
+            guests: updated.guests !== undefined ? Number(updated.guests) : nextGuestCount,
             tableId: updated.tableId !== undefined ? Number(updated.tableId) : item.tableId,
           }
         : item));
@@ -3201,11 +3204,12 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                           <input
                             type="number"
                             min="1"
-                            max={Math.max(1, b.guests)}
+                            max="99"
                             value={cardTariffForm.guests}
                             onChange={(e) => updateCardTariffForm(b.id, { guests: Number(e.target.value) || 1 })}
                             aria-label="Количество гостей для тарифа"
                           />
+                          <span className="booking-add-tariff-unit">чел</span>
                           <select
                             value={cardTariffForm.preset}
                             onChange={(e) => updateCardTariffForm(b.id, { preset: e.target.value as PackagePreset })}

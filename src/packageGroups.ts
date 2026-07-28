@@ -95,6 +95,12 @@ export function getPackageGuestsTotal(groups: PackageGroup[]): number {
   return normalizePackageGroups(groups).reduce((sum, group) => sum + group.guests, 0);
 }
 
+export function getGuestCountAfterTariffAddition(currentGuests: number, addedGuests: number): number {
+  const current = Math.max(0, Number(currentGuests) || 0);
+  const added = Math.max(0, Number(addedGuests) || 0);
+  return current + added;
+}
+
 export function getPackageGroupGuestCounts(groups: PackageGroup[]): {
   timeGuests: number;
   package2Guests: number;

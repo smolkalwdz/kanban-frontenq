@@ -688,19 +688,27 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  margin: 2px 0 5px;
-  padding: 3px;
-  border-radius: 7px;
-  background: rgba(255, 255, 255, 0.78);
-  border: 1px solid rgba(4, 120, 87, 0.22);
+  gap: 3px;
+  margin: 2px 0 6px;
+  padding: 4px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
 .booking-add-tariff-label {
   font-size: 10px;
   font-weight: 900;
-  color: #047857;
+  color: #065f46;
   white-space: nowrap;
+}
+
+.booking-add-tariff-unit {
+  margin-left: -2px;
+  font-size: 10px;
+  font-weight: 900;
+  color: #065f46;
 }
 
 .booking-add-tariff input,
@@ -716,13 +724,13 @@ body {
 }
 
 .booking-add-tariff input {
-  width: 34px;
+  width: 30px;
   text-align: center;
   padding: 0 2px;
 }
 
 .booking-add-tariff select {
-  width: 74px;
+  width: 70px;
   padding: 0 2px;
 }
 
