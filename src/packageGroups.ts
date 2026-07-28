@@ -1,7 +1,20 @@
-export interface PackageGroup {
+export type TimedPackageGroup = {
+  kind: 'time';
+  guests: number;
+};
+
+export type UnlimitedPackageGroup = {
+  kind: 'unlimited';
+  guests: number;
+};
+
+export type HourlyPackageGroup = {
+  kind: 'package';
   hours: 2 | 3;
   guests: number;
-}
+};
+
+export type PackageGroup = TimedPackageGroup | UnlimitedPackageGroup | HourlyPackageGroup;
 
 export interface ParsedPackageComment {
   groups: PackageGroup[];
@@ -27,8 +40,29 @@ export function addHoursToClockTime(time: string, hours: number): string {
 
 export function normalizePackageGroups(groups: PackageGroup[]): PackageGroup[] {
   return groups
-    .filter(group => (group.hours === 2 || group.hours === 3) && Number(group.guests) > 0)
-    .map(group => ({ hours: group.hours, guests: Number(group.guests) }));
+    .map((group: any) => {
+      const guests = Number(group?.guests);
+      if (!Number.isFinite(guests) || guests <= 0) return null;
+
+      if (group.kind === 'time') {
+        return { kind: 'time', guests } as TimedPackageGroup;
+      }
+
+      if (group.kind === 'unlimited') {
+        return { kind: 'unlimited', guests } as UnlimitedPackageGroup;
+      }
+
+      if (group.kind === 'package' && (group.hours === 2 || group.hours === 3)) {
+        return { kind: 'package', hours: group.hours, guests } as HourlyPackageGroup;
+      }
+
+      if (group.kind === undefined && (group.hours === 2 || group.hours === 3)) {
+        return { kind: 'package', hours: group.hours, guests } as HourlyPackageGroup;
+      }
+
+      return null;
+    })
+    .filter((group): group is PackageGroup => group !== null);
 }
 
 export function getPackageGuestsTotal(groups: PackageGroup[]): number {
@@ -37,10 +71,10 @@ export function getPackageGuestsTotal(groups: PackageGroup[]): number {
 
 export function buildPackagePreset(preset: PackagePreset, guests: number): { groups: PackageGroup[]; endTime?: string } {
   const guestCount = Math.max(0, Number(guests) || 0);
-  if (preset === '2h') return { groups: [{ hours: 2, guests: guestCount }], endTime: '' };
-  if (preset === '3h') return { groups: [{ hours: 3, guests: guestCount }], endTime: '' };
-  if (preset === 'unlimited') return { groups: [], endTime: '' };
-  return { groups: [], endTime: undefined };
+  if (preset === '2h') return { groups: [{ kind: 'package', hours: 2, guests: guestCount }], endTime: '' };
+  if (preset === '3h') return { groups: [{ kind: 'package', hours: 3, guests: guestCount }], endTime: '' };
+  if (preset === 'unlimited') return { groups: [{ kind: 'unlimited', guests: guestCount }], endTime: '' };
+  return { groups: [{ kind: 'time', guests: guestCount }], endTime: undefined };
 }
 
 export function getPackageEndDateFromActiveStart(activeStartedAt: string, hours: 2 | 3): Date {

@@ -980,6 +980,14 @@ button:hover {
   white-space: nowrap;
 }
 
+.booking-package-row.time {
+  border-left-color: #f59e0b;
+}
+
+.booking-package-row.unlimited {
+  border-left-color: #111827;
+}
+
 .booking-package-row.expired {
   background: #fee2e2;
   border-left-color: #dc2626;

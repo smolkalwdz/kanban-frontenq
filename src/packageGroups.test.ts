@@ -16,25 +16,53 @@ test('enables mixed packages only for Polevaya zone 20 tableId 42', () => {
 
 test('encodes and parses package groups inside booking comment', () => {
   const encoded = encodePackageComment([
-    { hours: 2, guests: 3 },
-    { hours: 3, guests: 2 },
+    { kind: 'package', hours: 2, guests: 3 },
+    { kind: 'package', hours: 3, guests: 2 },
   ], 'окно');
 
   expect(parsePackageComment(encoded)).toEqual({
     groups: [
-      { hours: 2, guests: 3 },
-      { hours: 3, guests: 2 },
+      { kind: 'package', hours: 2, guests: 3 },
+      { kind: 'package', hours: 3, guests: 2 },
     ],
     comment: 'окно',
+  });
+});
+
+test('encodes and parses mixed time, package and unlimited groups', () => {
+  const encoded = encodePackageComment([
+    { kind: 'time', guests: 2 },
+    { kind: 'package', hours: 2, guests: 3 },
+    { kind: 'package', hours: 3, guests: 1 },
+    { kind: 'unlimited', guests: 4 },
+  ], 'смешанная бронь');
+
+  expect(parsePackageComment(encoded)).toEqual({
+    groups: [
+      { kind: 'time', guests: 2 },
+      { kind: 'package', hours: 2, guests: 3 },
+      { kind: 'package', hours: 3, guests: 1 },
+      { kind: 'unlimited', guests: 4 },
+    ],
+    comment: 'смешанная бронь',
+  });
+});
+
+test('parses legacy package groups without kind', () => {
+  expect(parsePackageComment('[packages][{"hours":2,"guests":3}]')).toEqual({
+    groups: [{ kind: 'package', hours: 2, guests: 3 }],
+    comment: '',
   });
 });
 
 test('calculates package end times and guest total', () => {
   expect(addHoursToClockTime('23:30', 2)).toBe('01:30');
   expect(getPackageGuestsTotal([
-    { hours: 2, guests: 3 },
-    { hours: 3, guests: 2 },
-  ])).toBe(5);
+    { kind: 'time', guests: 1 },
+    { kind: 'package', hours: 2, guests: 3 },
+    { kind: 'package', hours: 3, guests: 2 },
+    { kind: 'unlimited', guests: 4 },
+  ])).toBe(10);
 });
 
 test('package groups are optional and plain comments stay plain', () => {
@@ -43,10 +71,10 @@ test('package groups are optional and plain comments stay plain', () => {
 });
 
 test('builds quick presets for all guests', () => {
-  expect(buildPackagePreset('time', 5)).toEqual({ groups: [], endTime: undefined });
-  expect(buildPackagePreset('unlimited', 5)).toEqual({ groups: [], endTime: '' });
-  expect(buildPackagePreset('2h', 5)).toEqual({ groups: [{ hours: 2, guests: 5 }], endTime: '' });
-  expect(buildPackagePreset('3h', 5)).toEqual({ groups: [{ hours: 3, guests: 5 }], endTime: '' });
+  expect(buildPackagePreset('time', 5)).toEqual({ groups: [{ kind: 'time', guests: 5 }], endTime: undefined });
+  expect(buildPackagePreset('unlimited', 5)).toEqual({ groups: [{ kind: 'unlimited', guests: 5 }], endTime: '' });
+  expect(buildPackagePreset('2h', 5)).toEqual({ groups: [{ kind: 'package', hours: 2, guests: 5 }], endTime: '' });
+  expect(buildPackagePreset('3h', 5)).toEqual({ groups: [{ kind: 'package', hours: 3, guests: 5 }], endTime: '' });
 });
 
 test('calculates package end from active start, not from booking time', () => {
