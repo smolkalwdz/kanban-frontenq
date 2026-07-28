@@ -54,6 +54,20 @@ test('encodes and parses mixed time, package and unlimited groups', () => {
   });
 });
 
+test('encodes and parses late package group start time', () => {
+  const startedAt = '2026-07-28T18:30:00.000Z';
+  const encoded = encodePackageComment([
+    { kind: 'package', hours: 2, guests: 1, startedAt },
+  ], 'добавили позже');
+
+  expect(parsePackageComment(encoded)).toEqual({
+    groups: [
+      { kind: 'package', hours: 2, guests: 1, startedAt },
+    ],
+    comment: 'добавили позже',
+  });
+});
+
 test('parses legacy package groups without kind', () => {
   expect(parsePackageComment('[packages][{"hours":2,"guests":3}]')).toEqual({
     groups: [{ kind: 'package', hours: 2, guests: 3 }],
@@ -113,6 +127,27 @@ test('detects package group ending soon from active start', () => {
     10
   )).toEqual({
     endDate: new Date('2026-07-28T20:00:00.000Z'),
+    minutesLeft: 9,
+    label: '⏳ ПАКЕТ 2 ЧАСА ЗАКАНЧИВАЕТСЯ (9 мин)',
+    packageLabel: 'Пакет 2 часа',
+  });
+});
+
+test('detects late package group ending soon from its own start time', () => {
+  const group = {
+    kind: 'package' as const,
+    hours: 2 as const,
+    guests: 1,
+    startedAt: '2026-07-28T18:30:00.000Z',
+  };
+
+  expect(getPackageGroupEndingSoonInfo(
+    group,
+    '2026-07-28T18:00:00.000Z',
+    new Date('2026-07-28T20:21:00.000Z'),
+    10
+  )).toEqual({
+    endDate: new Date('2026-07-28T20:30:00.000Z'),
     minutesLeft: 9,
     label: '⏳ ПАКЕТ 2 ЧАСА ЗАКАНЧИВАЕТСЯ (9 мин)',
     packageLabel: 'Пакет 2 часа',

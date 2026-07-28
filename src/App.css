@@ -684,6 +684,65 @@ body {
   text-shadow: 0 1px 1px rgba(4, 120, 87, 0.2);
 }
 
+.booking-add-tariff {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 2px 0 5px;
+  padding: 3px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(4, 120, 87, 0.22);
+}
+
+.booking-add-tariff-label {
+  font-size: 10px;
+  font-weight: 900;
+  color: #047857;
+  white-space: nowrap;
+}
+
+.booking-add-tariff input,
+.booking-add-tariff select {
+  height: 22px;
+  border: 1px solid #86efac;
+  border-radius: 5px;
+  background: #ffffff;
+  color: #111827;
+  font-size: 11px;
+  font-weight: 800;
+  outline: none;
+}
+
+.booking-add-tariff input {
+  width: 34px;
+  text-align: center;
+  padding: 0 2px;
+}
+
+.booking-add-tariff select {
+  width: 74px;
+  padding: 0 2px;
+}
+
+.booking-add-tariff button {
+  height: 22px;
+  min-width: 24px;
+  border: none;
+  border-radius: 5px;
+  background: #10b981;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.booking-add-tariff button:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
 .booking-card .booking-comment {
   font-size: 14px;
   color: #6b21a8;

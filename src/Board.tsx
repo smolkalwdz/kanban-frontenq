@@ -8,10 +8,11 @@ import {
 } from './tvVolumeDisplay';
 import {
   PackageGroup,
+  PackagePreset,
   buildPackagePreset,
   encodePackageComment,
   formatPackageRemainingText,
-  getPackageEndDateFromActiveStart,
+  getPackageGroupEndDate,
   getPackageGroupEndedInfo,
   getPackageGroupEndingSoonInfo,
   getPackageGroupGuestCounts,
@@ -121,6 +122,11 @@ const TASK_NOTIFICATION_TEST_STORAGE_KEY = 'taskNotificationTestPayload';
 const PACKAGE_ENDING_WARNING_MINUTES = [10, 5];
 const DISMISSED_PACKAGE_ENDED_STORAGE_KEY = 'dismissedPackageEndedNotices';
 
+type CardTariffForm = {
+  guests: number;
+  preset: PackagePreset;
+};
+
 const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   // Переопределение времени приложения (для тестов): читаем из localStorage
   const getNow = () => {
@@ -163,6 +169,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       return new Set();
     }
   });
+  const [cardTariffForms, setCardTariffForms] = useState<Record<string, CardTariffForm>>({});
   // Состояние для контекстного меню
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -1471,8 +1478,8 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     return { minutesOver: Math.max(0, Math.floor(Math.abs(diffMs) / (60 * 1000))) };
   };
 
-  const getPackageNoticeKey = (booking: Booking, hours: 2 | 3): string => {
-    return `${booking.id}_package_${hours}h_${booking.activeStartedAt || 'not-started'}`;
+  const getPackageNoticeKey = (booking: Booking, group: Extract<PackageGroup, { kind: 'package' }>): string => {
+    return `${booking.id}_package_${group.hours}h_${group.startedAt || booking.activeStartedAt || 'not-started'}`;
   };
 
   const getPackageEndingSoonInfos = (booking: Booking): NonNullable<ReturnType<typeof getPackageGroupEndingSoonInfo>>[] => {
@@ -1487,13 +1494,13 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     if (!booking.isActive || !booking.activeStartedAt || !isMixedPackageZone(booking.branch, booking.tableId)) return [];
     const groups = parsePackageComment(booking.comment).groups;
     return groups
-      .filter(group => group.kind !== 'package' || !dismissedPackageEndedKeys.has(getPackageNoticeKey(booking, group.hours)))
+      .filter(group => group.kind !== 'package' || !dismissedPackageEndedKeys.has(getPackageNoticeKey(booking, group)))
       .map(group => getPackageGroupEndedInfo(group, booking.activeStartedAt, getNow(), 10))
       .filter((info): info is NonNullable<typeof info> => info !== null);
   };
 
-  const dismissPackageEndedNotice = (booking: Booking, hours: 2 | 3) => {
-    const key = getPackageNoticeKey(booking, hours);
+  const dismissPackageEndedNotice = (booking: Booking, group: Extract<PackageGroup, { kind: 'package' }>) => {
+    const key = getPackageNoticeKey(booking, group);
     setDismissedPackageEndedKeys(prev => {
       const next = new Set(prev);
       next.add(key);
@@ -1664,6 +1671,72 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     }));
     if (preset === 'time') setEditTimeTarget('endTime');
     if (preset === 'unlimited') setEditTimeTarget('time');
+  };
+
+  const updateCardTariffForm = (bookingId: string, patch: Partial<CardTariffForm>) => {
+    setCardTariffForms(prev => ({
+      ...prev,
+      [bookingId]: {
+        guests: prev[bookingId]?.guests || 1,
+        preset: prev[bookingId]?.preset || '2h',
+        ...patch,
+      },
+    }));
+  };
+
+  const handleAddTariffToBooking = async (booking: Booking) => {
+    const form = cardTariffForms[booking.id] || { guests: 1, preset: '2h' as PackagePreset };
+    const guests = Math.max(1, Math.min(Number(form.guests) || 1, Math.max(1, booking.guests)));
+    const preset = form.preset || '2h';
+    const parsedPackageComment = parsePackageComment(booking.comment);
+    const startedAt = getNow().toISOString();
+    const addedGroup: PackageGroup =
+      preset === '2h'
+        ? { kind: 'package', hours: 2, guests, startedAt }
+        : preset === '3h'
+          ? { kind: 'package', hours: 3, guests, startedAt }
+          : preset === 'unlimited'
+            ? { kind: 'unlimited', guests }
+            : { kind: 'time', guests };
+    const nextGroups = normalizePackageGroups([...parsedPackageComment.groups, addedGroup]);
+    const nextComment = encodePackageComment(nextGroups, parsedPackageComment.comment);
+
+    try {
+      const response = await fetch(`${API_URL}/api/bookings/${booking.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: booking.name,
+          time: booking.time,
+          endTime: booking.endTime || null,
+          guests: booking.guests,
+          phone: booking.phone,
+          source: booking.source,
+          comment: nextComment,
+          hasVR: !!booking.hasVR,
+          hasShisha: !!booking.hasShisha,
+          isHappyHours: !!booking.isHappyHours,
+          smokingTimerEnd: booking.smokingTimerEnd || null,
+        }),
+      });
+
+      if (!response.ok) {
+        console.error('❌ Ошибка добавления тарифа в бронь');
+        return;
+      }
+
+      const updated = await response.json();
+      setBookings(prev => prev.map(item => item.id === booking.id
+        ? {
+            ...item,
+            ...updated,
+            tableId: updated.tableId !== undefined ? Number(updated.tableId) : item.tableId,
+          }
+        : item));
+      updateCardTariffForm(booking.id, { guests: 1 });
+    } catch (error) {
+      console.error('❌ Ошибка добавления тарифа в карточке:', error);
+    }
   };
 
   // Уведомление о завершении таймера курения
@@ -1939,7 +2012,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
             if (!endingSoon) continue;
 
             const endTime = formatPackageEndClock(endingSoon.endDate);
-            const notificationKey = `${booking.id}_package_${group.hours}h_${warningMinutes}m_v2_${booking.activeStartedAt}`;
+            const notificationKey = `${booking.id}_package_${group.hours}h_${warningMinutes}m_v2_${group.startedAt || booking.activeStartedAt}`;
             if (notified.has(notificationKey)) continue;
 
             let telegramStored = false;
@@ -2109,7 +2182,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
           if (!endedInfo) continue;
 
           const endTime = formatPackageEndClock(endedInfo.endDate);
-          const notificationKey = `${booking.id}_package_${group.hours}h_ended_v2_${booking.activeStartedAt}`;
+          const notificationKey = `${booking.id}_package_${group.hours}h_ended_v2_${group.startedAt || booking.activeStartedAt}`;
           if (notified.has(notificationKey)) continue;
 
           let telegramStored = false;
@@ -3080,6 +3153,8 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                       ? parsedPackageComment.groups
                       : [];
                     const visibleComment = packageGroups.length ? parsedPackageComment.comment : b.comment;
+                    const mixedPackageCard = isMixedPackageZone(table.branch, table.id);
+                    const cardTariffForm = cardTariffForms[b.id] || { guests: 1, preset: '2h' as PackagePreset };
 
                     return (
                 <div
@@ -3116,12 +3191,45 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                       ))}
                       <div className="booking-name">{b.name}</div>
                       <div className="booking-guests">{b.guests} чел.</div>
+                      {mixedPackageCard && (
+                        <div
+                          className="booking-add-tariff"
+                          onClick={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.stopPropagation()}
+                        >
+                          <span className="booking-add-tariff-label">+ тариф</span>
+                          <input
+                            type="number"
+                            min="1"
+                            max={Math.max(1, b.guests)}
+                            value={cardTariffForm.guests}
+                            onChange={(e) => updateCardTariffForm(b.id, { guests: Number(e.target.value) || 1 })}
+                            aria-label="Количество гостей для тарифа"
+                          />
+                          <select
+                            value={cardTariffForm.preset}
+                            onChange={(e) => updateCardTariffForm(b.id, { preset: e.target.value as PackagePreset })}
+                            aria-label="Тариф"
+                          >
+                            <option value="2h">2 ч</option>
+                            <option value="3h">3 ч</option>
+                            <option value="time">по времени</option>
+                            <option value="unlimited">безлимит</option>
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => handleAddTariffToBooking(b)}
+                            disabled={!b.isActive}
+                            title={b.isActive ? 'Добавить тариф с текущего момента' : 'Сначала нажми активировать бронь'}
+                          >
+                            +
+                          </button>
+                        </div>
+                      )}
                       {packageGroups.length > 0 && (
                         <div className="booking-package-groups">
                           {packageGroups.map((group, groupIndex) => {
-                            const packageEndDate = group.kind === 'package' && b.activeStartedAt
-                              ? getPackageEndDateFromActiveStart(b.activeStartedAt, group.hours)
-                              : null;
+                            const packageEndDate = getPackageGroupEndDate(group, b.activeStartedAt);
                             const packageEndLabel = group.kind === 'package'
                               ? (packageEndDate ? formatPackageEndClock(packageEndDate) : 'после старта')
                               : group.kind === 'time'
@@ -3133,7 +3241,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                                 ? formatTimedGroupRemaining(b)
                               : '';
                             const packageEndedDismissed = group.kind === 'package'
-                              ? dismissedPackageEndedKeys.has(getPackageNoticeKey(b, group.hours))
+                              ? dismissedPackageEndedKeys.has(getPackageNoticeKey(b, group))
                               : false;
                             const visibleRemainingText = remainingText === 'завершён' && packageEndedDismissed
                               ? ''
@@ -3149,7 +3257,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                                 className={`booking-package-row ${group.kind} ${visibleRemainingText === 'завершён' ? 'expired package-ended-attention' : ''}`}
                                 onClick={() => {
                                   if (group.kind === 'package' && visibleRemainingText === 'завершён') {
-                                    dismissPackageEndedNotice(b, group.hours);
+                                    dismissPackageEndedNotice(b, group);
                                   }
                                 }}
                                 title={group.kind === 'package' && visibleRemainingText === 'завершён' ? 'Нажми, чтобы скрыть завершение пакета' : undefined}

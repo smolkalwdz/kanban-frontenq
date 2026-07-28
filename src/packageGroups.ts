@@ -12,6 +12,7 @@ export type HourlyPackageGroup = {
   kind: 'package';
   hours: 2 | 3;
   guests: number;
+  startedAt?: string;
 };
 
 export type PackageGroup = TimedPackageGroup | UnlimitedPackageGroup | HourlyPackageGroup;
@@ -37,6 +38,12 @@ export interface ParsedPackageComment {
 export type PackagePreset = 'time' | '2h' | '3h' | 'unlimited';
 
 const PACKAGE_PREFIX = '[packages]';
+
+function normalizeStartedAt(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const date = new Date(value);
+  return isNaN(date.getTime()) ? undefined : value;
+}
 
 export function isMixedPackageZone(branch: string, tableId: number): boolean {
   return branch === 'Полевая';
@@ -66,7 +73,13 @@ export function normalizePackageGroups(groups: PackageGroup[]): PackageGroup[] {
       }
 
       if (group.kind === 'package' && (group.hours === 2 || group.hours === 3)) {
-        return { kind: 'package', hours: group.hours, guests } as HourlyPackageGroup;
+        const startedAt = normalizeStartedAt(group.startedAt);
+        return {
+          kind: 'package',
+          hours: group.hours,
+          guests,
+          ...(startedAt ? { startedAt } : {}),
+        } as HourlyPackageGroup;
       }
 
       if (group.kind === undefined && (group.hours === 2 || group.hours === 3)) {
@@ -117,6 +130,23 @@ export function getPackageEndDateFromActiveStart(
   return new Date(startedAt.getTime() + durationMs);
 }
 
+export function getPackageGroupStartAt(
+  group: HourlyPackageGroup,
+  activeStartedAt: string | null | undefined
+): string | null {
+  return group.startedAt || activeStartedAt || null;
+}
+
+export function getPackageGroupEndDate(
+  group: PackageGroup,
+  activeStartedAt: string | null | undefined
+): Date | null {
+  if (group.kind !== 'package') return null;
+  const startedAt = getPackageGroupStartAt(group, activeStartedAt);
+  if (!startedAt) return null;
+  return getPackageEndDateFromActiveStart(startedAt, group.hours);
+}
+
 export function getPackageGroupLabel(group: HourlyPackageGroup): string {
   return `Пакет ${group.hours} часа`;
 }
@@ -127,8 +157,9 @@ export function getPackageGroupEndingSoonInfo(
   now: Date,
   warningWindowMinutes = 10
 ): PackageGroupEndingSoonInfo | null {
-  if (group.kind !== 'package' || !activeStartedAt) return null;
-  const endDate = getPackageEndDateFromActiveStart(activeStartedAt, group.hours);
+  if (group.kind !== 'package') return null;
+  const endDate = getPackageGroupEndDate(group, activeStartedAt);
+  if (!endDate) return null;
   if (isNaN(endDate.getTime())) return null;
 
   const diffMs = endDate.getTime() - now.getTime();
@@ -150,8 +181,9 @@ export function getPackageGroupEndedInfo(
   now: Date,
   notificationWindowMinutes = 10
 ): PackageGroupEndedInfo | null {
-  if (group.kind !== 'package' || !activeStartedAt) return null;
-  const endDate = getPackageEndDateFromActiveStart(activeStartedAt, group.hours);
+  if (group.kind !== 'package') return null;
+  const endDate = getPackageGroupEndDate(group, activeStartedAt);
+  if (!endDate) return null;
   if (isNaN(endDate.getTime())) return null;
 
   const diffMs = endDate.getTime() - now.getTime();
