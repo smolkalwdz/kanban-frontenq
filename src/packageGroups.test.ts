@@ -12,11 +12,12 @@ import {
   parsePackageComment,
 } from './packageGroups';
 
-test('enables mixed packages only for Polevaya zone 20 tableId 42', () => {
+test('enables mixed packages for all Polevaya zones only', () => {
+  expect(isMixedPackageZone('Полевая', 23)).toBe(true);
   expect(isMixedPackageZone('Полевая', 26)).toBe(true);
   expect(isMixedPackageZone('Полевая', 42)).toBe(true);
   expect(isMixedPackageZone('МСК', 42)).toBe(false);
-  expect(isMixedPackageZone('Полевая', 20)).toBe(false);
+  expect(isMixedPackageZone('МСК', 20)).toBe(false);
 });
 
 test('encodes and parses package groups inside booking comment', () => {

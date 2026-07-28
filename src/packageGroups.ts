@@ -39,7 +39,7 @@ export type PackagePreset = 'time' | '2h' | '3h' | 'unlimited';
 const PACKAGE_PREFIX = '[packages]';
 
 export function isMixedPackageZone(branch: string, tableId: number): boolean {
-  return branch === 'Полевая' && [26, 42].includes(Number(tableId));
+  return branch === 'Полевая';
 }
 
 export function addHoursToClockTime(time: string, hours: number): string {
