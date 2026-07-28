@@ -1477,6 +1477,14 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       .filter((info): info is NonNullable<typeof info> => info !== null);
   };
 
+  const getPackageEndedInfos = (booking: Booking): NonNullable<ReturnType<typeof getPackageGroupEndedInfo>>[] => {
+    if (!booking.isActive || !booking.activeStartedAt || !isMixedPackageZone(booking.branch, booking.tableId)) return [];
+    const groups = parsePackageComment(booking.comment).groups;
+    return groups
+      .map(group => getPackageGroupEndedInfo(group, booking.activeStartedAt, getNow(), 10, packageDurationUnit))
+      .filter((info): info is NonNullable<typeof info> => info !== null);
+  };
+
   const togglePackageTimerTestMode = () => {
     setIsPackageTimerTestMode(prev => {
       const next = !prev;
@@ -1983,7 +1991,8 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       }
     };
 
-    const interval = setInterval(checkPackageEndingAndNotify, 15 * 1000);
+    checkPackageEndingAndNotify();
+    const interval = setInterval(checkPackageEndingAndNotify, 5 * 1000);
     return () => clearInterval(interval);
   }, [bookings, currentBranch, tables, packageDurationUnit]);
 
@@ -2143,7 +2152,8 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       }
     };
 
-    const interval = setInterval(checkPackageEndedAndNotify, 15 * 1000);
+    checkPackageEndedAndNotify();
+    const interval = setInterval(checkPackageEndedAndNotify, 5 * 1000);
     return () => clearInterval(interval);
   }, [bookings, currentBranch, tables, packageDurationUnit]);
 
@@ -3044,7 +3054,8 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                     const isTimerExpired = isSmokingTimerExpired(b);
                     const endingSoonInfo = getEndingSoonInfo(b);
                     const packageEndingSoonInfos = getPackageEndingSoonInfos(b);
-                    const isOverdue = b.isActive && !!getEndedInfo(b);
+                    const packageEndedInfos = getPackageEndedInfos(b);
+                    const isOverdue = b.isActive && (!!getEndedInfo(b) || packageEndedInfos.length > 0);
                     const activeDurationText = formatActiveDuration(b);
                     const parsedPackageComment = parsePackageComment(b.comment);
                     const packageGroups = isMixedPackageZone(table.branch, table.id)
@@ -3058,7 +3069,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                   draggable
                   onDragStart={() => handleDragStart(b)}
                   onClick={(e) => e.stopPropagation()}
-                  className={`booking-card ${b.isActive ? 'green' : 'red'} ${shouldHighlightHH(b) ? 'hh-active' : ''} ${shouldBlinkHH(b) ? 'hh-blink' : ''} ${isTimerExpired ? 'smoking-timer-expired' : ''} ${endingSoonInfo ? 'booking-ending-soon' : ''} ${isOverdue ? 'booking-overdue' : ''} ${activeDurationText ? 'has-active-timer' : ''}`}
+                  className={`booking-card ${b.isActive ? 'green' : 'red'} ${shouldHighlightHH(b) ? 'hh-active' : ''} ${shouldBlinkHH(b) ? 'hh-blink' : ''} ${isTimerExpired ? 'smoking-timer-expired' : ''} ${endingSoonInfo || packageEndingSoonInfos.length > 0 ? 'booking-ending-soon' : ''} ${isOverdue ? 'booking-overdue' : ''} ${activeDurationText ? 'has-active-timer' : ''}`}
                     >
                       {activeDurationText && (
                         <div className="booking-active-timer">
@@ -3078,6 +3089,11 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                       {packageEndingSoonInfos.map(info => (
                         <div key={info.packageLabel} className="booking-ending-warning">
                           {info.label}
+                        </div>
+                      ))}
+                      {packageEndedInfos.map(info => (
+                        <div key={`${info.packageLabel}-ended`} className="booking-ending-warning">
+                          ⛔ {info.packageLabel.toUpperCase()} ЗАКОНЧИЛСЯ
                         </div>
                       ))}
                       <div className="booking-name">{b.name}</div>
