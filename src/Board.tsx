@@ -6,6 +6,14 @@ import {
   createPendingVolumeChange,
   reconcileVolumeReadback,
 } from './tvVolumeDisplay';
+import {
+  PackageGroup,
+  addHoursToClockTime,
+  encodePackageComment,
+  getPackageGuestsTotal,
+  isMixedPackageZone,
+  parsePackageComment,
+} from './packageGroups';
 
 const SOURCES = ['Лично', 'Звонок', 'Онлайн'] as const;
 type SourceType = typeof SOURCES[number];
@@ -128,6 +136,8 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     time: '',
     endTime: '',
     guests: 1,
+    package2Guests: 0,
+    package3Guests: 0,
     phone: '',
     comment: '',
     hasVR: false,
@@ -377,6 +387,8 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       time: '',
       endTime: '',
       guests: 1,
+      package2Guests: 0,
+      package3Guests: 0,
       phone: '',
       comment: '',
       hasVR: false,
@@ -441,6 +453,22 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   const handleQuickBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!quickBooking || !quickForm.name.trim() || !quickForm.time.trim()) return;
+    const mixedPackageBooking = isMixedPackageZone(currentBranch, quickBooking.tableId);
+    const packageGroups: PackageGroup[] = mixedPackageBooking
+      ? [
+          { hours: 2, guests: Number(quickForm.package2Guests) as number } as PackageGroup,
+          { hours: 3, guests: Number(quickForm.package3Guests) as number } as PackageGroup,
+        ]
+      : [];
+    const normalizedPackageGroups = packageGroups.filter(group => group.guests > 0);
+    const packageGuestsTotal = getPackageGuestsTotal(normalizedPackageGroups);
+    if (mixedPackageBooking && packageGuestsTotal <= 0) return;
+    const packageEndTime = mixedPackageBooking
+      ? addHoursToClockTime(
+          quickForm.time.trim(),
+          normalizedPackageGroups.some(group => group.hours === 3) ? 3 : 2
+        )
+      : quickForm.endTime.trim();
 
     // Если галочка "МНЕ ТОЛЬКО ПОКУРИТЬ" активна, устанавливаем таймер
     let smokingTimerEnd: string | undefined = undefined;
@@ -459,14 +487,16 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     const newBooking: Omit<Booking, 'id'> = {
       name: quickForm.name.trim(),
       time: quickForm.time.trim(),
-      endTime: quickForm.endTime.trim() || undefined,
+      endTime: packageEndTime || undefined,
       tableId: quickBooking.tableId,
-      guests: quickForm.guests,
+      guests: mixedPackageBooking ? packageGuestsTotal : quickForm.guests,
       phone: quickForm.phone.trim(),
       source: 'Лично' as SourceType,
       branch: currentBranch,
       isActive: false,
-      comment: (quickForm.comment || '').trim(),
+      comment: mixedPackageBooking
+        ? encodePackageComment(normalizedPackageGroups, quickForm.comment || '')
+        : (quickForm.comment || '').trim(),
       hasVR: !!quickForm.hasVR,
       hasShisha: !!quickForm.hasShisha,
       isHappyHours: !!quickForm.isHappyHours,
@@ -495,6 +525,8 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
         time: '',
         endTime: '',
         guests: 1,
+        package2Guests: 0,
+        package3Guests: 0,
         phone: '',
         comment: '',
         hasVR: false,
@@ -1010,13 +1042,14 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     setEditTimeTarget('time');
     // Проверяем, есть ли активный таймер курения
     const hasActiveTimer = booking.smokingTimerEnd && new Date(booking.smokingTimerEnd) > getNow();
+    const parsedPackageComment = parsePackageComment(booking.comment);
     setEditForm({
       name: booking.name,
       time: booking.time,
       endTime: booking.endTime || '',
       guests: booking.guests,
       phone: booking.phone,
-      comment: booking.comment || '',
+      comment: parsedPackageComment.comment || '',
       hasVR: booking.hasVR || false,
       hasShisha: booking.hasShisha || false,
       isHappyHours: booking.isHappyHours || false,
@@ -1095,6 +1128,11 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       saveNotifiedEndedBookings(updatedEndedNotified);
     }
 
+    const existingPackageComment = parsePackageComment(editingBooking.comment);
+    const nextComment = existingPackageComment.groups.length
+      ? encodePackageComment(existingPackageComment.groups, editForm.comment)
+      : editForm.comment.trim();
+
     const res = await fetch(`${API_URL}/api/bookings/${editingBooking.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -1105,7 +1143,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
         guests: editForm.guests,
         phone: editForm.phone.trim(),
         source: 'Лично' as SourceType,
-        comment: editForm.comment.trim(),
+        comment: nextComment,
         hasVR: editForm.hasVR,
         hasShisha: editForm.hasShisha,
         isHappyHours: editForm.isHappyHours,
@@ -1485,6 +1523,19 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     }
 
     return `⏱ ${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  };
+
+  const formatPackageRemaining = (booking: Booking, endTime: string): string => {
+    const diffMs = getBookingEndDiffMs({ ...booking, endTime });
+    if (diffMs === null) return '';
+    if (diffMs <= 0) return 'завершён';
+
+    const totalMinutes = Math.ceil(diffMs / (60 * 1000));
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return hours > 0
+      ? `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+      : `${minutes} мин`;
   };
 
   // Уведомление о завершении таймера курения
@@ -2632,6 +2683,11 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                     const endingSoonInfo = getEndingSoonInfo(b);
                     const isOverdue = b.isActive && !!getEndedInfo(b);
                     const activeDurationText = formatActiveDuration(b);
+                    const parsedPackageComment = parsePackageComment(b.comment);
+                    const packageGroups = isMixedPackageZone(table.branch, table.id)
+                      ? parsedPackageComment.groups
+                      : [];
+                    const visibleComment = packageGroups.length ? parsedPackageComment.comment : b.comment;
 
                     return (
                 <div
@@ -2658,7 +2714,25 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                       )}
                       <div className="booking-name">{b.name}</div>
                       <div className="booking-guests">{b.guests} чел.</div>
-                      {b.comment && <div className="booking-comment">💬 {b.comment}</div>}
+                      {packageGroups.length > 0 && (
+                        <div className="booking-package-groups">
+                          {packageGroups.map(group => {
+                            const packageEndTime = addHoursToClockTime(b.time, group.hours);
+                            const remainingText = b.isActive ? formatPackageRemaining(b, packageEndTime) : '';
+                            return (
+                              <div
+                                key={`${group.hours}-${group.guests}`}
+                                className={`booking-package-row ${remainingText === 'завершён' ? 'expired' : ''}`}
+                              >
+                                <strong>{group.hours} часа × {group.guests}</strong>
+                                <span>до {packageEndTime}</span>
+                                {remainingText && <span className="package-timer">{remainingText}</span>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {visibleComment && <div className="booking-comment">💬 {visibleComment}</div>}
                       {b.phone && <div className="booking-info">тел. {b.phone}</div>}
                       {(b.hasVR || b.hasShisha) && (
                         <div className="booking-services">
@@ -2903,39 +2977,43 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                 onFocus={() => setQuickTimeTarget('time')}
                 required
               />
-              <input
-                name="endTime"
-                type="time"
-                value={quickForm.endTime}
-                onChange={handleQuickFormChange}
-                onFocus={() => setQuickTimeTarget('endTime')}
-                placeholder="До времени"
-              />
-              <div style={{ display: 'flex', gap: '8px', margin: '8px 0' }}>
-                {[2, 3].map(hours => (
-                  <button
-                    key={hours}
-                    type="button"
-                    disabled={!quickForm.time}
-                    onClick={() =>
-                      setQuickForm(prev => ({ ...prev, endTime: addHoursToTime(prev.time, hours) }))
-                    }
-                    style={{
-                      background: '#2563eb',
-                      color: '#ffffff',
-                      border: 'none',
-                      borderRadius: '8px',
-                      padding: '14px 22px',
-                      fontSize: '22px',
-                      fontWeight: 700,
-                      opacity: quickForm.time ? 1 : 0.5,
-                      cursor: quickForm.time ? 'pointer' : 'not-allowed'
-                    }}
-                  >
-                    Пакет {hours} часа
-                  </button>
-                ))}
-              </div>
+              {!(quickBooking && isMixedPackageZone(currentBranch, quickBooking.tableId)) && (
+                <>
+                  <input
+                    name="endTime"
+                    type="time"
+                    value={quickForm.endTime}
+                    onChange={handleQuickFormChange}
+                    onFocus={() => setQuickTimeTarget('endTime')}
+                    placeholder="До времени"
+                  />
+                  <div style={{ display: 'flex', gap: '8px', margin: '8px 0' }}>
+                    {[2, 3].map(hours => (
+                      <button
+                        key={hours}
+                        type="button"
+                        disabled={!quickForm.time}
+                        onClick={() =>
+                          setQuickForm(prev => ({ ...prev, endTime: addHoursToTime(prev.time, hours) }))
+                        }
+                        style={{
+                          background: '#2563eb',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '8px',
+                          padding: '14px 22px',
+                          fontSize: '22px',
+                          fontWeight: 700,
+                          opacity: quickForm.time ? 1 : 0.5,
+                          cursor: quickForm.time ? 'pointer' : 'not-allowed'
+                        }}
+                      >
+                        Пакет {hours} часа
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
               <div className="quick-time-buttons">
                 {[
                   '14:00', '15:00', '16:00', '17:00', '18:00',
@@ -2958,14 +3036,46 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
 
             <div>
               <label>Гости *</label>
-              <input
-                name="guests"
-                type="number"
-                min="1"
-                value={quickForm.guests}
-                onChange={handleQuickFormChange}
-                required
-              />
+              {quickBooking && isMixedPackageZone(currentBranch, quickBooking.tableId) ? (
+                <div className="mixed-package-form">
+                  <div className="mixed-package-total">
+                    <span>Всего гостей</span>
+                    <strong>{Number(quickForm.package2Guests || 0) + Number(quickForm.package3Guests || 0)}</strong>
+                  </div>
+                  <label className="mixed-package-counter">
+                    <span>Пакет 2 часа</span>
+                    <input
+                      name="package2Guests"
+                      type="number"
+                      min="0"
+                      value={quickForm.package2Guests}
+                      onChange={handleQuickFormChange}
+                    />
+                  </label>
+                  <label className="mixed-package-counter">
+                    <span>Пакет 3 часа</span>
+                    <input
+                      name="package3Guests"
+                      type="number"
+                      min="0"
+                      value={quickForm.package3Guests}
+                      onChange={handleQuickFormChange}
+                    />
+                  </label>
+                  <div className="mixed-package-hint">
+                    Для Полевая 20 карточка покажет отдельные строки и разные окончания пакетов.
+                  </div>
+                </div>
+              ) : (
+                <input
+                  name="guests"
+                  type="number"
+                  min="1"
+                  value={quickForm.guests}
+                  onChange={handleQuickFormChange}
+                  required
+                />
+              )}
             </div>
 
             <div>
