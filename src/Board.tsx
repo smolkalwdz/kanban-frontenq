@@ -8,6 +8,7 @@ import {
 } from './tvVolumeDisplay';
 import {
   PackageGroup,
+  PackageDurationUnit,
   buildPackagePreset,
   encodePackageComment,
   getPackageEndDateFromActiveStart,
@@ -117,6 +118,7 @@ interface TriggeredTaskNotification {
 }
 
 const TASK_NOTIFICATION_TEST_STORAGE_KEY = 'taskNotificationTestPayload';
+const PACKAGE_TIMER_TEST_MODE_STORAGE_KEY = 'packageTimerTestMode';
 
 const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   // Переопределение времени приложения (для тестов): читаем из localStorage
@@ -152,6 +154,9 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     smokingTimer: false, // галочка "МНЕ ТОЛЬКО ПОКУРИТЬ"
   });
   const [quickTimeTarget, setQuickTimeTarget] = useState<'time' | 'endTime'>('time');
+  const [isPackageTimerTestMode, setIsPackageTimerTestMode] = useState<boolean>(() => {
+    return localStorage.getItem(PACKAGE_TIMER_TEST_MODE_STORAGE_KEY) === 'true';
+  });
   // Состояние для контекстного меню
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -1460,12 +1465,22 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     return { minutesOver: Math.max(0, Math.floor(Math.abs(diffMs) / (60 * 1000))) };
   };
 
+  const packageDurationUnit: PackageDurationUnit = isPackageTimerTestMode ? 'minutes' : 'hours';
+
   const getPackageEndingSoonInfos = (booking: Booking): NonNullable<ReturnType<typeof getPackageGroupEndingSoonInfo>>[] => {
     if (!booking.isActive || !booking.activeStartedAt || !isMixedPackageZone(booking.branch, booking.tableId)) return [];
     const groups = parsePackageComment(booking.comment).groups;
     return groups
-      .map(group => getPackageGroupEndingSoonInfo(group, booking.activeStartedAt, getNow()))
+      .map(group => getPackageGroupEndingSoonInfo(group, booking.activeStartedAt, getNow(), 10, packageDurationUnit))
       .filter((info): info is NonNullable<typeof info> => info !== null);
+  };
+
+  const togglePackageTimerTestMode = () => {
+    setIsPackageTimerTestMode(prev => {
+      const next = !prev;
+      localStorage.setItem(PACKAGE_TIMER_TEST_MODE_STORAGE_KEY, String(next));
+      return next;
+    });
   };
 
   const notifiedEndingBookingsRef = useRef<Set<string>>(
@@ -1906,7 +1921,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
 
         for (const group of packageGroups) {
           if (group.kind !== 'package') continue;
-          const endingSoon = getPackageGroupEndingSoonInfo(group, booking.activeStartedAt, getNow());
+          const endingSoon = getPackageGroupEndingSoonInfo(group, booking.activeStartedAt, getNow(), 10, packageDurationUnit);
           if (!endingSoon) continue;
 
           const endTime = formatPackageEndClock(endingSoon.endDate);
@@ -1972,7 +1987,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
 
     const interval = setInterval(checkPackageEndingAndNotify, 15 * 1000);
     return () => clearInterval(interval);
-  }, [bookings, currentBranch, tables]);
+  }, [bookings, currentBranch, tables, packageDurationUnit]);
 
   // Уведомление в момент окончания брони (поле "До времени")
   useEffect(() => {
@@ -2066,7 +2081,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
 
         for (const group of packageGroups) {
           if (group.kind !== 'package') continue;
-          const endedInfo = getPackageGroupEndedInfo(group, booking.activeStartedAt, getNow());
+          const endedInfo = getPackageGroupEndedInfo(group, booking.activeStartedAt, getNow(), 10, packageDurationUnit);
           if (!endedInfo) continue;
 
           const endTime = formatPackageEndClock(endedInfo.endDate);
@@ -2132,7 +2147,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
 
     const interval = setInterval(checkPackageEndedAndNotify, 15 * 1000);
     return () => clearInterval(interval);
-  }, [bookings, currentBranch, tables]);
+  }, [bookings, currentBranch, tables, packageDurationUnit]);
 
   // ========== КОНЕЦ ЛОГИКИ ПРОВЕРКИ ЗАДАЧ ==========
 
@@ -2335,6 +2350,13 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                     <span>Распределено</span>
                     <strong>{editDistributedGuests} / {editForm.guests}</strong>
                   </div>
+                  <button
+                    type="button"
+                    className={`mixed-package-test-toggle ${isPackageTimerTestMode ? 'active' : ''}`}
+                    onClick={togglePackageTimerTestMode}
+                  >
+                    {isPackageTimerTestMode ? 'ТЕСТ ВКЛ: 2ч=2мин, 3ч=3мин' : 'Тест пакетов: 2/3 минуты'}
+                  </button>
                   <label className="mixed-package-counter">
                     <span>По времени</span>
                     <input
@@ -2453,7 +2475,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
         </div>
       </div>
     );
-  }, [editingBooking, editForm, handleEditFormChange, handleSaveBookingEdit, handleCancelBookingEdit, applyMixedPackageEditPreset]);
+  }, [editingBooking, editForm, handleEditFormChange, handleSaveBookingEdit, handleCancelBookingEdit, applyMixedPackageEditPreset, editTimeTarget, isPackageTimerTestMode]);
 
   // Обработчики для кнопок карточек
   const toggleActiveHandler = (booking: Booking) => (e: React.MouseEvent) => {
@@ -3066,7 +3088,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                         <div className="booking-package-groups">
                           {packageGroups.map((group, groupIndex) => {
                             const packageEndDate = group.kind === 'package' && b.activeStartedAt
-                              ? getPackageEndDateFromActiveStart(b.activeStartedAt, group.hours)
+                              ? getPackageEndDateFromActiveStart(b.activeStartedAt, group.hours, packageDurationUnit)
                               : null;
                             const packageEndLabel = group.kind === 'package'
                               ? (packageEndDate ? formatPackageEndClock(packageEndDate) : 'после старта')
@@ -3427,6 +3449,13 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                     <span>Распределено</span>
                     <strong>{Number(quickForm.timeGuests || 0) + Number(quickForm.package2Guests || 0) + Number(quickForm.package3Guests || 0) + Number(quickForm.unlimitedGuests || 0)} / {quickForm.guests}</strong>
                   </div>
+                  <button
+                    type="button"
+                    className={`mixed-package-test-toggle ${isPackageTimerTestMode ? 'active' : ''}`}
+                    onClick={togglePackageTimerTestMode}
+                  >
+                    {isPackageTimerTestMode ? 'ТЕСТ ВКЛ: 2ч=2мин, 3ч=3мин' : 'Тест пакетов: 2/3 минуты'}
+                  </button>
                   <label className="mixed-package-counter">
                     <span>По времени</span>
                     <input

@@ -85,6 +85,11 @@ test('calculates package end from active start, not from booking time', () => {
     .toBe('2026-07-28T20:10:00.000Z');
 });
 
+test('can calculate package end in minutes for short test mode', () => {
+  expect(getPackageEndDateFromActiveStart('2026-07-28T18:10:00.000Z', 2, 'minutes').toISOString())
+    .toBe('2026-07-28T18:12:00.000Z');
+});
+
 test('extracts guest counters for edit forms', () => {
   expect(getPackageGroupGuestCounts([
     { kind: 'time', guests: 2 },
@@ -106,7 +111,9 @@ test('detects package group ending soon from active start', () => {
   expect(getPackageGroupEndingSoonInfo(
     group,
     '2026-07-28T18:00:00.000Z',
-    now
+    now,
+    10,
+    'hours'
   )).toEqual({
     endDate: new Date('2026-07-28T20:00:00.000Z'),
     minutesLeft: 9,
@@ -121,7 +128,9 @@ test('detects ended package group only inside notification window', () => {
   expect(getPackageGroupEndedInfo(
     group,
     '2026-07-28T18:00:00.000Z',
-    new Date('2026-07-28T21:03:00.000Z')
+    new Date('2026-07-28T21:03:00.000Z'),
+    10,
+    'hours'
   )).toEqual({
     endDate: new Date('2026-07-28T21:00:00.000Z'),
     minutesOver: 3,
@@ -131,6 +140,28 @@ test('detects ended package group only inside notification window', () => {
   expect(getPackageGroupEndedInfo(
     group,
     '2026-07-28T18:00:00.000Z',
-    new Date('2026-07-28T21:11:00.000Z')
+    new Date('2026-07-28T21:11:00.000Z'),
+    10,
+    'hours'
   )).toBeNull();
+});
+
+test('detects package notifications in minutes for short test mode', () => {
+  const group = { kind: 'package' as const, hours: 2 as const, guests: 3 };
+
+  expect(getPackageGroupEndingSoonInfo(
+    group,
+    '2026-07-28T18:00:00.000Z',
+    new Date('2026-07-28T18:01:00.000Z'),
+    10,
+    'minutes'
+  )?.minutesLeft).toBe(1);
+
+  expect(getPackageGroupEndedInfo(
+    group,
+    '2026-07-28T18:00:00.000Z',
+    new Date('2026-07-28T18:02:20.000Z'),
+    10,
+    'minutes'
+  )?.minutesOver).toBe(0);
 });

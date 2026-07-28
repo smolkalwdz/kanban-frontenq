@@ -1049,6 +1049,22 @@ button:hover {
   text-align: center;
 }
 
+.mixed-package-test-toggle {
+  border: 0;
+  border-radius: 9px;
+  padding: 9px 10px;
+  background: #e0e7ff;
+  color: #3730a3;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.mixed-package-test-toggle.active {
+  background: #f97316;
+  color: #ffffff;
+}
+
 .mixed-package-counter {
   display: grid !important;
   grid-template-columns: 1fr 90px;

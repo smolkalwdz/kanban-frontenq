@@ -15,6 +15,7 @@ export type HourlyPackageGroup = {
 };
 
 export type PackageGroup = TimedPackageGroup | UnlimitedPackageGroup | HourlyPackageGroup;
+export type PackageDurationUnit = 'hours' | 'minutes';
 
 export interface PackageGroupEndingSoonInfo {
   endDate: Date;
@@ -108,9 +109,16 @@ export function buildPackagePreset(preset: PackagePreset, guests: number): { gro
   return { groups: [{ kind: 'time', guests: guestCount }], endTime: undefined };
 }
 
-export function getPackageEndDateFromActiveStart(activeStartedAt: string, hours: 2 | 3): Date {
+export function getPackageEndDateFromActiveStart(
+  activeStartedAt: string,
+  hours: 2 | 3,
+  durationUnit: PackageDurationUnit = 'hours'
+): Date {
   const startedAt = new Date(activeStartedAt);
-  return new Date(startedAt.getTime() + hours * 60 * 60 * 1000);
+  const durationMs = durationUnit === 'minutes'
+    ? hours * 60 * 1000
+    : hours * 60 * 60 * 1000;
+  return new Date(startedAt.getTime() + durationMs);
 }
 
 export function getPackageGroupLabel(group: HourlyPackageGroup): string {
@@ -121,10 +129,11 @@ export function getPackageGroupEndingSoonInfo(
   group: PackageGroup,
   activeStartedAt: string | null | undefined,
   now: Date,
-  warningWindowMinutes = 10
+  warningWindowMinutes = 10,
+  durationUnit: PackageDurationUnit = 'hours'
 ): PackageGroupEndingSoonInfo | null {
   if (group.kind !== 'package' || !activeStartedAt) return null;
-  const endDate = getPackageEndDateFromActiveStart(activeStartedAt, group.hours);
+  const endDate = getPackageEndDateFromActiveStart(activeStartedAt, group.hours, durationUnit);
   if (isNaN(endDate.getTime())) return null;
 
   const diffMs = endDate.getTime() - now.getTime();
@@ -144,10 +153,11 @@ export function getPackageGroupEndedInfo(
   group: PackageGroup,
   activeStartedAt: string | null | undefined,
   now: Date,
-  notificationWindowMinutes = 10
+  notificationWindowMinutes = 10,
+  durationUnit: PackageDurationUnit = 'hours'
 ): PackageGroupEndedInfo | null {
   if (group.kind !== 'package' || !activeStartedAt) return null;
-  const endDate = getPackageEndDateFromActiveStart(activeStartedAt, group.hours);
+  const endDate = getPackageEndDateFromActiveStart(activeStartedAt, group.hours, durationUnit);
   if (isNaN(endDate.getTime())) return null;
 
   const diffMs = endDate.getTime() - now.getTime();
