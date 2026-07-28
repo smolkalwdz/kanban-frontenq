@@ -15,7 +15,6 @@ export type HourlyPackageGroup = {
 };
 
 export type PackageGroup = TimedPackageGroup | UnlimitedPackageGroup | HourlyPackageGroup;
-export type PackageDurationUnit = 'hours' | 'minutes' | 'test30seconds';
 
 export interface PackageGroupEndingSoonInfo {
   endDate: Date;
@@ -111,15 +110,10 @@ export function buildPackagePreset(preset: PackagePreset, guests: number): { gro
 
 export function getPackageEndDateFromActiveStart(
   activeStartedAt: string,
-  hours: 2 | 3,
-  durationUnit: PackageDurationUnit = 'hours'
+  hours: 2 | 3
 ): Date {
   const startedAt = new Date(activeStartedAt);
-  const durationMs = durationUnit === 'test30seconds'
-    ? 30 * 1000
-    : durationUnit === 'minutes'
-      ? hours * 60 * 1000
-      : hours * 60 * 60 * 1000;
+  const durationMs = hours * 60 * 60 * 1000;
   return new Date(startedAt.getTime() + durationMs);
 }
 
@@ -131,11 +125,10 @@ export function getPackageGroupEndingSoonInfo(
   group: PackageGroup,
   activeStartedAt: string | null | undefined,
   now: Date,
-  warningWindowMinutes = 10,
-  durationUnit: PackageDurationUnit = 'hours'
+  warningWindowMinutes = 10
 ): PackageGroupEndingSoonInfo | null {
   if (group.kind !== 'package' || !activeStartedAt) return null;
-  const endDate = getPackageEndDateFromActiveStart(activeStartedAt, group.hours, durationUnit);
+  const endDate = getPackageEndDateFromActiveStart(activeStartedAt, group.hours);
   if (isNaN(endDate.getTime())) return null;
 
   const diffMs = endDate.getTime() - now.getTime();
@@ -155,11 +148,10 @@ export function getPackageGroupEndedInfo(
   group: PackageGroup,
   activeStartedAt: string | null | undefined,
   now: Date,
-  notificationWindowMinutes = 10,
-  durationUnit: PackageDurationUnit = 'hours'
+  notificationWindowMinutes = 10
 ): PackageGroupEndedInfo | null {
   if (group.kind !== 'package' || !activeStartedAt) return null;
-  const endDate = getPackageEndDateFromActiveStart(activeStartedAt, group.hours, durationUnit);
+  const endDate = getPackageEndDateFromActiveStart(activeStartedAt, group.hours);
   if (isNaN(endDate.getTime())) return null;
 
   const diffMs = endDate.getTime() - now.getTime();
@@ -172,15 +164,8 @@ export function getPackageGroupEndedInfo(
   };
 }
 
-export function formatPackageRemainingText(diffMs: number, durationUnit: PackageDurationUnit = 'hours'): string {
+export function formatPackageRemainingText(diffMs: number): string {
   if (diffMs <= 0) return 'завершён';
-
-  if (durationUnit === 'minutes' || durationUnit === 'test30seconds') {
-    const totalSeconds = Math.ceil(diffMs / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-  }
 
   const totalMinutes = Math.ceil(diffMs / (60 * 1000));
   const hours = Math.floor(totalMinutes / 60);
