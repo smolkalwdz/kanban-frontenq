@@ -8,6 +8,8 @@ import {
   getPackageGroupEndedInfo,
   getPackageGroupEndingSoonInfo,
   getGuestCountAfterTariffAddition,
+  getGuestCountAfterTariffRemoval,
+  removePackageGroupAt,
   formatPackageRemainingText,
   isMixedPackageZone,
   parsePackageComment,
@@ -90,6 +92,21 @@ test('adds late tariff guests to booking guest count', () => {
   expect(getGuestCountAfterTariffAddition(4, 1)).toBe(5);
   expect(getGuestCountAfterTariffAddition(4, 3)).toBe(7);
   expect(getGuestCountAfterTariffAddition(4, 0)).toBe(4);
+});
+
+test('removes selected tariff group and subtracts its guests', () => {
+  const groups = [
+    { kind: 'time' as const, guests: 2 },
+    { kind: 'package' as const, hours: 2 as const, guests: 1, startedAt: '2026-07-28T18:30:00.000Z' },
+    { kind: 'unlimited' as const, guests: 3 },
+  ];
+
+  expect(removePackageGroupAt(groups, 1)).toEqual([
+    { kind: 'time', guests: 2 },
+    { kind: 'unlimited', guests: 3 },
+  ]);
+  expect(getGuestCountAfterTariffRemoval(6, groups[1])).toBe(5);
+  expect(getGuestCountAfterTariffRemoval(1, groups[1])).toBe(1);
 });
 
 test('package groups are optional and plain comments stay plain', () => {
@@ -199,6 +216,26 @@ test('detects ended package group only inside notification window', () => {
     new Date('2026-07-28T21:11:00.000Z'),
     10
   )).toBeNull();
+});
+
+test('detects late package group ended from its own start time', () => {
+  const group = {
+    kind: 'package' as const,
+    hours: 2 as const,
+    guests: 1,
+    startedAt: '2026-07-28T18:30:00.000Z',
+  };
+
+  expect(getPackageGroupEndedInfo(
+    group,
+    '2026-07-28T18:00:00.000Z',
+    new Date('2026-07-28T20:31:00.000Z'),
+    10
+  )).toEqual({
+    endDate: new Date('2026-07-28T20:30:00.000Z'),
+    minutesOver: 1,
+    packageLabel: 'Пакет 2 часа',
+  });
 });
 
 test('formats package timers in real package mode', () => {

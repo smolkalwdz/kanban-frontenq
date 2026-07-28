@@ -13,6 +13,7 @@ import {
   encodePackageComment,
   formatPackageRemainingText,
   getGuestCountAfterTariffAddition,
+  getGuestCountAfterTariffRemoval,
   getPackageGroupEndDate,
   getPackageGroupEndedInfo,
   getPackageGroupEndingSoonInfo,
@@ -20,6 +21,7 @@ import {
   isMixedPackageZone,
   normalizePackageGroups,
   parsePackageComment,
+  removePackageGroupAt,
 } from './packageGroups';
 
 const SOURCES = ['Лично', 'Звонок', 'Онлайн'] as const;
@@ -1687,7 +1689,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
 
   const handleAddTariffToBooking = async (booking: Booking) => {
     const form = cardTariffForms[booking.id] || { guests: 1, preset: '2h' as PackagePreset };
-    const guests = Math.max(1, Math.min(Number(form.guests) || 1, Math.max(1, booking.guests)));
+    const guests = Math.max(1, Math.min(Number(form.guests) || 1, 99));
     const preset = form.preset || '2h';
     const parsedPackageComment = parsePackageComment(booking.comment);
     const startedAt = getNow().toISOString();
@@ -1739,6 +1741,53 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       updateCardTariffForm(booking.id, { guests: 1 });
     } catch (error) {
       console.error('❌ Ошибка добавления тарифа в карточке:', error);
+    }
+  };
+
+  const handleRemoveTariffFromBooking = async (booking: Booking, groupIndex: number) => {
+    const parsedPackageComment = parsePackageComment(booking.comment);
+    const groupToRemove = parsedPackageComment.groups[groupIndex];
+    if (!groupToRemove) return;
+
+    const nextGroups = removePackageGroupAt(parsedPackageComment.groups, groupIndex);
+    const nextComment = encodePackageComment(nextGroups, parsedPackageComment.comment);
+    const nextGuestCount = getGuestCountAfterTariffRemoval(booking.guests, groupToRemove);
+
+    try {
+      const response = await fetch(`${API_URL}/api/bookings/${booking.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: booking.name,
+          time: booking.time,
+          endTime: booking.endTime || null,
+          guests: nextGuestCount,
+          phone: booking.phone,
+          source: booking.source,
+          comment: nextComment,
+          hasVR: !!booking.hasVR,
+          hasShisha: !!booking.hasShisha,
+          isHappyHours: !!booking.isHappyHours,
+          smokingTimerEnd: booking.smokingTimerEnd || null,
+        }),
+      });
+
+      if (!response.ok) {
+        console.error('❌ Ошибка удаления тарифа из брони');
+        return;
+      }
+
+      const updated = await response.json();
+      setBookings(prev => prev.map(item => item.id === booking.id
+        ? {
+            ...item,
+            ...updated,
+            guests: updated.guests !== undefined ? Number(updated.guests) : nextGuestCount,
+            tableId: updated.tableId !== undefined ? Number(updated.tableId) : item.tableId,
+          }
+        : item));
+    } catch (error) {
+      console.error('❌ Ошибка удаления тарифа в карточке:', error);
     }
   };
 
@@ -3273,6 +3322,18 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                                 <strong>{groupTitle}</strong>
                                 <span>{group.kind === 'package' && packageEndDate ? `до ${packageEndLabel}` : packageEndLabel}</span>
                                 {visibleRemainingText && <span className="package-timer">{visibleRemainingText}</span>}
+                                <button
+                                  type="button"
+                                  className="package-remove-btn"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRemoveTariffFromBooking(b, groupIndex);
+                                  }}
+                                  title="Удалить этот тариф"
+                                  aria-label="Удалить тариф"
+                                >
+                                  ×
+                                </button>
                               </div>
                             );
                           })}

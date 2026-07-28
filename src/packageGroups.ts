@@ -101,6 +101,16 @@ export function getGuestCountAfterTariffAddition(currentGuests: number, addedGue
   return current + added;
 }
 
+export function getGuestCountAfterTariffRemoval(currentGuests: number, removedGroup: PackageGroup): number {
+  const current = Math.max(0, Number(currentGuests) || 0);
+  const removed = Math.max(0, Number(removedGroup?.guests) || 0);
+  return Math.max(1, current - removed);
+}
+
+export function removePackageGroupAt(groups: PackageGroup[], index: number): PackageGroup[] {
+  return normalizePackageGroups(groups).filter((_, groupIndex) => groupIndex !== index);
+}
+
 export function getPackageGroupGuestCounts(groups: PackageGroup[]): {
   timeGuests: number;
   package2Guests: number;
