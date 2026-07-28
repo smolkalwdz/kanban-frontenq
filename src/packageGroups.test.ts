@@ -12,6 +12,7 @@ import {
 } from './packageGroups';
 
 test('enables mixed packages only for Polevaya zone 20 tableId 42', () => {
+  expect(isMixedPackageZone('Полевая', 26)).toBe(true);
   expect(isMixedPackageZone('Полевая', 42)).toBe(true);
   expect(isMixedPackageZone('МСК', 42)).toBe(false);
   expect(isMixedPackageZone('Полевая', 20)).toBe(false);
