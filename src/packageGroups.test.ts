@@ -124,6 +124,26 @@ test('detects package group ending soon from active start', () => {
   });
 });
 
+test('detects package group five minute warning separately', () => {
+  const group = { kind: 'package' as const, hours: 2 as const, guests: 3 };
+
+  expect(getPackageGroupEndingSoonInfo(
+    group,
+    '2026-07-28T18:00:00.000Z',
+    new Date('2026-07-28T19:55:00.000Z'),
+    5,
+    'hours'
+  )?.minutesLeft).toBe(5);
+
+  expect(getPackageGroupEndingSoonInfo(
+    group,
+    '2026-07-28T18:00:00.000Z',
+    new Date('2026-07-28T19:54:00.000Z'),
+    5,
+    'hours'
+  )).toBeNull();
+});
+
 test('detects ended package group only inside notification window', () => {
   const group = { kind: 'package' as const, hours: 3 as const, guests: 2 };
 

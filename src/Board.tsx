@@ -120,6 +120,7 @@ interface TriggeredTaskNotification {
 
 const TASK_NOTIFICATION_TEST_STORAGE_KEY = 'taskNotificationTestPayload';
 const PACKAGE_TIMER_TEST_MODE_STORAGE_KEY = 'packageTimerTestMode';
+const PACKAGE_ENDING_WARNING_MINUTES = [10, 5];
 
 const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   // Переопределение времени приложения (для тестов): читаем из localStorage
@@ -1915,54 +1916,57 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
 
         for (const group of packageGroups) {
           if (group.kind !== 'package') continue;
-          const endingSoon = getPackageGroupEndingSoonInfo(group, booking.activeStartedAt, getNow(), 10, packageDurationUnit);
-          if (!endingSoon) continue;
 
-          const endTime = formatPackageEndClock(endingSoon.endDate);
-          const notificationKey = `${booking.id}_package_${group.hours}h_${booking.activeStartedAt}`;
-          if (notified.has(notificationKey)) continue;
+          for (const warningMinutes of PACKAGE_ENDING_WARNING_MINUTES) {
+            const endingSoon = getPackageGroupEndingSoonInfo(group, booking.activeStartedAt, getNow(), warningMinutes, packageDurationUnit);
+            if (!endingSoon) continue;
 
-          notified.add(notificationKey);
-          saveNotifiedEndingBookings(notified);
+            const endTime = formatPackageEndClock(endingSoon.endDate);
+            const notificationKey = `${booking.id}_package_${group.hours}h_${warningMinutes}m_${booking.activeStartedAt}`;
+            if (notified.has(notificationKey)) continue;
 
-          try {
-            const payload: any = {
-              branch: booking.branch,
-              zoneName,
-              guestName: booking.name,
-              endTime,
-              minutesLeft: endingSoon.minutesLeft,
-              packageLabel: `${endingSoon.packageLabel} × ${group.guests}`,
-            };
-            if (testTimeOverride) {
-              payload.testDate = testTimeOverride;
+            notified.add(notificationKey);
+            saveNotifiedEndingBookings(notified);
+
+            try {
+              const payload: any = {
+                branch: booking.branch,
+                zoneName,
+                guestName: booking.name,
+                endTime,
+                minutesLeft: endingSoon.minutesLeft,
+                packageLabel: `${endingSoon.packageLabel} × ${group.guests}`,
+              };
+              if (testTimeOverride) {
+                payload.testDate = testTimeOverride;
+              }
+
+              const response = await fetch(`${API_URL}/api/telegram/notify-booking-ending`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+              });
+
+              if (!response.ok) {
+                console.error('❌ Ошибка отправки уведомления о завершении пакетной группы');
+              }
+            } catch (error) {
+              console.error('❌ Ошибка отправки уведомления о завершении пакетной группы:', error);
             }
 
-            const response = await fetch(`${API_URL}/api/telegram/notify-booking-ending`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload)
-            });
-
-            if (!response.ok) {
-              console.error('❌ Ошибка отправки уведомления о завершении пакетной группы');
+            try {
+              await fetch(`${API_URL}/api/tv/notify`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  tableId: booking.tableId,
+                  text: `${endingSoon.packageLabel} заканчивается через ${endingSoon.minutesLeft} мин`,
+                  durationSec: 15
+                })
+              });
+            } catch (error) {
+              console.error('❌ Ошибка отправки TV-уведомления (package ending):', error);
             }
-          } catch (error) {
-            console.error('❌ Ошибка отправки уведомления о завершении пакетной группы:', error);
-          }
-
-          try {
-            await fetch(`${API_URL}/api/tv/notify`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                tableId: booking.tableId,
-                text: `${endingSoon.packageLabel} заканчивается через ${endingSoon.minutesLeft} мин`,
-                durationSec: 15
-              })
-            });
-          } catch (error) {
-            console.error('❌ Ошибка отправки TV-уведомления (package ending):', error);
           }
         }
       }
