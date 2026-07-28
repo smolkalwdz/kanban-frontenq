@@ -121,6 +121,7 @@ interface TriggeredTaskNotification {
 const TASK_NOTIFICATION_TEST_STORAGE_KEY = 'taskNotificationTestPayload';
 const PACKAGE_TIMER_TEST_MODE_STORAGE_KEY = 'packageTimerTestMode';
 const PACKAGE_ENDING_WARNING_MINUTES = [10, 5];
+const DISMISSED_PACKAGE_ENDED_STORAGE_KEY = 'dismissedPackageEndedNotices';
 
 const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   // Переопределение времени приложения (для тестов): читаем из localStorage
@@ -158,6 +159,14 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   const [quickTimeTarget, setQuickTimeTarget] = useState<'time' | 'endTime'>('time');
   const [isPackageTimerTestMode, setIsPackageTimerTestMode] = useState<boolean>(() => {
     return localStorage.getItem(PACKAGE_TIMER_TEST_MODE_STORAGE_KEY) === 'true';
+  });
+  const [dismissedPackageEndedKeys, setDismissedPackageEndedKeys] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem(DISMISSED_PACKAGE_ENDED_STORAGE_KEY);
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch {
+      return new Set();
+    }
   });
   // Состояние для контекстного меню
   const [contextMenu, setContextMenu] = useState<{
@@ -1469,6 +1478,10 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
 
   const packageDurationUnit: PackageDurationUnit = isPackageTimerTestMode ? 'minutes' : 'hours';
 
+  const getPackageNoticeKey = (booking: Booking, hours: 2 | 3): string => {
+    return `${booking.id}_package_${hours}h_${booking.activeStartedAt || 'not-started'}`;
+  };
+
   const getPackageEndingSoonInfos = (booking: Booking): NonNullable<ReturnType<typeof getPackageGroupEndingSoonInfo>>[] => {
     if (!booking.isActive || !booking.activeStartedAt || !isMixedPackageZone(booking.branch, booking.tableId)) return [];
     const groups = parsePackageComment(booking.comment).groups;
@@ -1481,8 +1494,19 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     if (!booking.isActive || !booking.activeStartedAt || !isMixedPackageZone(booking.branch, booking.tableId)) return [];
     const groups = parsePackageComment(booking.comment).groups;
     return groups
+      .filter(group => group.kind !== 'package' || !dismissedPackageEndedKeys.has(getPackageNoticeKey(booking, group.hours)))
       .map(group => getPackageGroupEndedInfo(group, booking.activeStartedAt, getNow(), 10, packageDurationUnit))
       .filter((info): info is NonNullable<typeof info> => info !== null);
+  };
+
+  const dismissPackageEndedNotice = (booking: Booking, hours: 2 | 3) => {
+    const key = getPackageNoticeKey(booking, hours);
+    setDismissedPackageEndedKeys(prev => {
+      const next = new Set(prev);
+      next.add(key);
+      localStorage.setItem(DISMISSED_PACKAGE_ENDED_STORAGE_KEY, JSON.stringify(Array.from(next)));
+      return next;
+    });
   };
 
   const togglePackageTimerTestMode = () => {
@@ -1930,11 +1954,11 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
             if (!endingSoon) continue;
 
             const endTime = formatPackageEndClock(endingSoon.endDate);
-            const notificationKey = `${booking.id}_package_${group.hours}h_${warningMinutes}m_${booking.activeStartedAt}`;
+            const notificationKey = `${booking.id}_package_${group.hours}h_${warningMinutes}m_v2_${booking.activeStartedAt}`;
             if (notified.has(notificationKey)) continue;
 
-            notified.add(notificationKey);
-            saveNotifiedEndingBookings(notified);
+            let telegramStored = false;
+            let tvStored = false;
 
             try {
               const payload: any = {
@@ -1957,13 +1981,15 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
 
               if (!response.ok) {
                 console.error('❌ Ошибка отправки уведомления о завершении пакетной группы');
+              } else {
+                telegramStored = true;
               }
             } catch (error) {
               console.error('❌ Ошибка отправки уведомления о завершении пакетной группы:', error);
             }
 
             try {
-              await fetch(`${API_URL}/api/tv/notify`, {
+              const tvResponse = await fetch(`${API_URL}/api/tv/notify`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1972,8 +1998,14 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                   durationSec: 15
                 })
               });
+              tvStored = tvResponse.ok;
             } catch (error) {
               console.error('❌ Ошибка отправки TV-уведомления (package ending):', error);
+            }
+
+            if (telegramStored && tvStored) {
+              notified.add(notificationKey);
+              saveNotifiedEndingBookings(notified);
             }
           }
         }
@@ -2092,11 +2124,11 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
           if (!endedInfo) continue;
 
           const endTime = formatPackageEndClock(endedInfo.endDate);
-          const notificationKey = `${booking.id}_package_${group.hours}h_${booking.activeStartedAt}`;
+          const notificationKey = `${booking.id}_package_${group.hours}h_ended_v2_${booking.activeStartedAt}`;
           if (notified.has(notificationKey)) continue;
 
-          notified.add(notificationKey);
-          saveNotifiedEndedBookings(notified);
+          let telegramStored = false;
+          let tvStored = false;
 
           try {
             const payload: any = {
@@ -2119,13 +2151,15 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
 
             if (!response.ok) {
               console.error('❌ Ошибка отправки уведомления об окончании пакетной группы');
+            } else {
+              telegramStored = true;
             }
           } catch (error) {
             console.error('❌ Ошибка отправки уведомления об окончании пакетной группы:', error);
           }
 
           try {
-            await fetch(`${API_URL}/api/tv/notify`, {
+            const tvResponse = await fetch(`${API_URL}/api/tv/notify`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -2134,8 +2168,14 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                 durationSec: null
               })
             });
+            tvStored = tvResponse.ok;
           } catch (error) {
             console.error('❌ Ошибка отправки TV-уведомления (package ended):', error);
+          }
+
+          if (telegramStored && tvStored) {
+            notified.add(notificationKey);
+            saveNotifiedEndedBookings(notified);
           }
         }
       }
@@ -3114,6 +3154,12 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                               : group.kind === 'time'
                                 ? formatTimedGroupRemaining(b)
                               : '';
+                            const packageEndedDismissed = group.kind === 'package'
+                              ? dismissedPackageEndedKeys.has(getPackageNoticeKey(b, group.hours))
+                              : false;
+                            const visibleRemainingText = remainingText === 'завершён' && packageEndedDismissed
+                              ? ''
+                              : remainingText;
                             const groupTitle = group.kind === 'time'
                               ? `По времени × ${group.guests}`
                               : group.kind === 'unlimited'
@@ -3122,11 +3168,17 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                             return (
                               <div
                                 key={`${group.kind}-${groupIndex}`}
-                                className={`booking-package-row ${group.kind} ${remainingText === 'завершён' ? 'expired' : ''}`}
+                                className={`booking-package-row ${group.kind} ${visibleRemainingText === 'завершён' ? 'expired package-ended-attention' : ''}`}
+                                onClick={() => {
+                                  if (group.kind === 'package' && visibleRemainingText === 'завершён') {
+                                    dismissPackageEndedNotice(b, group.hours);
+                                  }
+                                }}
+                                title={group.kind === 'package' && visibleRemainingText === 'завершён' ? 'Нажми, чтобы скрыть завершение пакета' : undefined}
                               >
                                 <strong>{groupTitle}</strong>
                                 <span>{group.kind === 'package' && packageEndDate ? `до ${packageEndLabel}` : packageEndLabel}</span>
-                                {remainingText && <span className="package-timer">{remainingText}</span>}
+                                {visibleRemainingText && <span className="package-timer">{visibleRemainingText}</span>}
                               </div>
                             );
                           })}
