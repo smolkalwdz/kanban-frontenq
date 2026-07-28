@@ -87,9 +87,11 @@ test('calculates package end from active start, not from booking time', () => {
     .toBe('2026-07-28T20:10:00.000Z');
 });
 
-test('can calculate package end in minutes for short test mode', () => {
-  expect(getPackageEndDateFromActiveStart('2026-07-28T18:10:00.000Z', 2, 'minutes').toISOString())
-    .toBe('2026-07-28T18:12:00.000Z');
+test('can calculate package end as 30 seconds for short test mode', () => {
+  expect(getPackageEndDateFromActiveStart('2026-07-28T18:10:00.000Z', 2, 'test30seconds').toISOString())
+    .toBe('2026-07-28T18:10:30.000Z');
+  expect(getPackageEndDateFromActiveStart('2026-07-28T18:10:00.000Z', 3, 'test30seconds').toISOString())
+    .toBe('2026-07-28T18:10:30.000Z');
 });
 
 test('extracts guest counters for edit forms', () => {
@@ -168,28 +170,28 @@ test('detects ended package group only inside notification window', () => {
   )).toBeNull();
 });
 
-test('detects package notifications in minutes for short test mode', () => {
+test('detects package notifications in 30 second short test mode', () => {
   const group = { kind: 'package' as const, hours: 2 as const, guests: 3 };
 
   expect(getPackageGroupEndingSoonInfo(
     group,
     '2026-07-28T18:00:00.000Z',
-    new Date('2026-07-28T18:01:00.000Z'),
+    new Date('2026-07-28T18:00:20.000Z'),
     10,
-    'minutes'
+    'test30seconds'
   )?.minutesLeft).toBe(1);
 
   expect(getPackageGroupEndedInfo(
     group,
     '2026-07-28T18:00:00.000Z',
-    new Date('2026-07-28T18:02:20.000Z'),
+    new Date('2026-07-28T18:00:31.000Z'),
     10,
-    'minutes'
+    'test30seconds'
   )?.minutesOver).toBe(0);
 });
 
 test('formats short test package timers with seconds', () => {
-  expect(formatPackageRemainingText(97 * 1000, 'minutes')).toBe('01:37');
-  expect(formatPackageRemainingText(8 * 1000, 'minutes')).toBe('00:08');
+  expect(formatPackageRemainingText(30 * 1000, 'test30seconds')).toBe('00:30');
+  expect(formatPackageRemainingText(8 * 1000, 'test30seconds')).toBe('00:08');
   expect(formatPackageRemainingText(61 * 60 * 1000, 'hours')).toBe('01:01');
 });

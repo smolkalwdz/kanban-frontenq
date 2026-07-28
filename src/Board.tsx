@@ -1476,7 +1476,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     return { minutesOver: Math.max(0, Math.floor(Math.abs(diffMs) / (60 * 1000))) };
   };
 
-  const packageDurationUnit: PackageDurationUnit = isPackageTimerTestMode ? 'minutes' : 'hours';
+  const packageDurationUnit: PackageDurationUnit = isPackageTimerTestMode ? 'test30seconds' : 'hours';
 
   const getPackageNoticeKey = (booking: Booking, hours: 2 | 3): string => {
     return `${booking.id}_package_${hours}h_${booking.activeStartedAt || 'not-started'}`;
@@ -2403,7 +2403,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                     className={`mixed-package-test-toggle ${isPackageTimerTestMode ? 'active' : ''}`}
                     onClick={togglePackageTimerTestMode}
                   >
-                    {isPackageTimerTestMode ? 'ТЕСТ ВКЛ: 2ч=2мин, 3ч=3мин' : 'Тест пакетов: 2/3 минуты'}
+                    {isPackageTimerTestMode ? 'ТЕСТ ВКЛ: все пакеты 30 сек' : 'Тест пакетов: 30 секунд'}
                   </button>
                   <label className="mixed-package-counter">
                     <span>По времени</span>
@@ -3520,7 +3520,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                     className={`mixed-package-test-toggle ${isPackageTimerTestMode ? 'active' : ''}`}
                     onClick={togglePackageTimerTestMode}
                   >
-                    {isPackageTimerTestMode ? 'ТЕСТ ВКЛ: 2ч=2мин, 3ч=3мин' : 'Тест пакетов: 2/3 минуты'}
+                    {isPackageTimerTestMode ? 'ТЕСТ ВКЛ: все пакеты 30 сек' : 'Тест пакетов: 30 секунд'}
                   </button>
                   <label className="mixed-package-counter">
                     <span>По времени</span>

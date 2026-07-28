@@ -15,7 +15,7 @@ export type HourlyPackageGroup = {
 };
 
 export type PackageGroup = TimedPackageGroup | UnlimitedPackageGroup | HourlyPackageGroup;
-export type PackageDurationUnit = 'hours' | 'minutes';
+export type PackageDurationUnit = 'hours' | 'minutes' | 'test30seconds';
 
 export interface PackageGroupEndingSoonInfo {
   endDate: Date;
@@ -115,9 +115,11 @@ export function getPackageEndDateFromActiveStart(
   durationUnit: PackageDurationUnit = 'hours'
 ): Date {
   const startedAt = new Date(activeStartedAt);
-  const durationMs = durationUnit === 'minutes'
-    ? hours * 60 * 1000
-    : hours * 60 * 60 * 1000;
+  const durationMs = durationUnit === 'test30seconds'
+    ? 30 * 1000
+    : durationUnit === 'minutes'
+      ? hours * 60 * 1000
+      : hours * 60 * 60 * 1000;
   return new Date(startedAt.getTime() + durationMs);
 }
 
@@ -173,7 +175,7 @@ export function getPackageGroupEndedInfo(
 export function formatPackageRemainingText(diffMs: number, durationUnit: PackageDurationUnit = 'hours'): string {
   if (diffMs <= 0) return 'завершён';
 
-  if (durationUnit === 'minutes') {
+  if (durationUnit === 'minutes' || durationUnit === 'test30seconds') {
     const totalSeconds = Math.ceil(diffMs / 1000);
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
