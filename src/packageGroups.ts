@@ -8,6 +8,8 @@ export interface ParsedPackageComment {
   comment: string;
 }
 
+export type PackagePreset = 'time' | '2h' | '3h' | 'unlimited';
+
 const PACKAGE_PREFIX = '[packages]';
 
 export function isMixedPackageZone(branch: string, tableId: number): boolean {
@@ -31,6 +33,19 @@ export function normalizePackageGroups(groups: PackageGroup[]): PackageGroup[] {
 
 export function getPackageGuestsTotal(groups: PackageGroup[]): number {
   return normalizePackageGroups(groups).reduce((sum, group) => sum + group.guests, 0);
+}
+
+export function buildPackagePreset(preset: PackagePreset, guests: number): { groups: PackageGroup[]; endTime?: string } {
+  const guestCount = Math.max(0, Number(guests) || 0);
+  if (preset === '2h') return { groups: [{ hours: 2, guests: guestCount }], endTime: '' };
+  if (preset === '3h') return { groups: [{ hours: 3, guests: guestCount }], endTime: '' };
+  if (preset === 'unlimited') return { groups: [], endTime: '' };
+  return { groups: [], endTime: undefined };
+}
+
+export function getPackageEndDateFromActiveStart(activeStartedAt: string, hours: 2 | 3): Date {
+  const startedAt = new Date(activeStartedAt);
+  return new Date(startedAt.getTime() + hours * 60 * 60 * 1000);
 }
 
 export function encodePackageComment(groups: PackageGroup[], comment: string): string {

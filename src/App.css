@@ -1002,6 +1002,28 @@ button:hover {
   margin-bottom: 10px;
 }
 
+.mixed-package-presets {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.mixed-package-presets button {
+  border: 0;
+  border-radius: 9px;
+  padding: 10px 8px;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.mixed-package-presets button:nth-child(4) {
+  background: #111827;
+}
+
 .mixed-package-total {
   display: flex;
   justify-content: space-between;
