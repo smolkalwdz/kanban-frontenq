@@ -264,6 +264,23 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     hasSmartThings: boolean;
     tvOn: boolean | null;
     appRunning: boolean | null;
+    appVisible?: boolean | null;
+    appVersion?: string | null;
+    build?: string | null;
+    ip?: string | null;
+    lastSeen?: string | null;
+    lastNotice?: {
+      text: string;
+      durationSec: number | null;
+      at: string;
+    } | null;
+    lastCommand?: {
+      action: string;
+      ok: boolean;
+      status: number | null;
+      reason: string | null;
+      at: string;
+    } | null;
   } | null>(null);
   const [tvControlBusy, setTvControlBusy] = useState(false);
   const [contextMenuAntiSleep, setContextMenuAntiSleep] = useState<AntiSleepZone | null>(null);
@@ -366,13 +383,19 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     const text = window.prompt('Текст сообщения на экран TV:');
     if (!text || !text.trim()) return;
     try {
-      await fetch(`${API_URL}/api/tv/notify`, {
+      const res = await fetch(`${API_URL}/api/tv/notify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tableId, text: text.trim(), durationSec: 20 }),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert('Не удалось отправить сообщение на TV: ' + (data.error || res.status));
+      }
+      loadTvControlStatus(tableId);
     } catch (error) {
       console.error('Ошибка отправки сообщения на TV:', error);
+      alert('Ошибка отправки сообщения на TV');
     }
   };
 
@@ -2891,18 +2914,45 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
             🖥 Управление TV
           </div>
 
-          {/* Статус: TV включен/выключен, работает ли приложение */}
-          <div style={{ display: 'flex', gap: '10px', padding: '2px 12px 8px', fontSize: '12px' }}>
+          {/* Статус: TV включен/выключен, отвечает ли приложение и видно ли оно на экране */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '2px 12px 8px', fontSize: '12px' }}>
             {contextMenuTvStatus === null || !contextMenuTvStatus.hasSmartThings ? (
               <span style={{ color: '#9ca3af' }}>нет данных SmartThings</span>
             ) : (
               <>
-                <span>
-                  {contextMenuTvStatus.tvOn === null ? '⚪' : contextMenuTvStatus.tvOn ? '🟢' : '🔴'} TV {contextMenuTvStatus.tvOn === null ? '?' : contextMenuTvStatus.tvOn ? 'включен' : 'выключен'}
-                </span>
-                <span>
-                  {contextMenuTvStatus.appRunning ? '🟢' : '🔴'} Приложение {contextMenuTvStatus.appRunning ? 'работает' : 'не отвечает'}
-                </span>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  <span>
+                    {contextMenuTvStatus.tvOn === null ? '⚪' : contextMenuTvStatus.tvOn ? '🟢' : '🔴'} TV {contextMenuTvStatus.tvOn === null ? '?' : contextMenuTvStatus.tvOn ? 'включен' : 'выключен'}
+                  </span>
+                  <span>
+                    {contextMenuTvStatus.appRunning ? '🟢' : '🔴'} App {contextMenuTvStatus.appRunning ? 'отвечает' : 'не отвечает'}
+                  </span>
+                  <span>
+                    {contextMenuTvStatus.appVisible === null || contextMenuTvStatus.appVisible === undefined
+                      ? '⚪ экран ?'
+                      : contextMenuTvStatus.appVisible
+                        ? '🟢 на экране'
+                        : '🟡 в фоне'}
+                  </span>
+                </div>
+                <div style={{ color: '#6b7280', lineHeight: 1.35 }}>
+                  IP: {contextMenuTvStatus.ip || '—'}
+                  {contextMenuTvStatus.appVersion ? ` · v${contextMenuTvStatus.appVersion}` : ''}
+                  {contextMenuTvStatus.build ? ` · ${contextMenuTvStatus.build}` : ''}
+                </div>
+                <div style={{ color: '#6b7280', lineHeight: 1.35 }}>
+                  последний poll: {contextMenuTvStatus.lastSeen ? new Date(contextMenuTvStatus.lastSeen).toLocaleTimeString('ru-RU') : '—'}
+                </div>
+                <div style={{ color: '#6b7280', lineHeight: 1.35 }}>
+                  команда: {contextMenuTvStatus.lastCommand
+                    ? `${contextMenuTvStatus.lastCommand.ok ? '✅' : '❌'} ${contextMenuTvStatus.lastCommand.action} ${new Date(contextMenuTvStatus.lastCommand.at).toLocaleTimeString('ru-RU')}`
+                    : '—'}
+                </div>
+                <div style={{ color: '#6b7280', lineHeight: 1.35 }}>
+                  сообщение: {contextMenuTvStatus.lastNotice
+                    ? `“${contextMenuTvStatus.lastNotice.text.slice(0, 32)}${contextMenuTvStatus.lastNotice.text.length > 32 ? '…' : ''}” ${new Date(contextMenuTvStatus.lastNotice.at).toLocaleTimeString('ru-RU')}`
+                    : '—'}
+                </div>
               </>
             )}
           </div>
@@ -2970,7 +3020,6 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
               e.preventDefault();
               e.stopPropagation();
               handleSendTvMessage(contextMenu.tableId);
-              setContextMenu(null);
             }}
             type="button"
           >
