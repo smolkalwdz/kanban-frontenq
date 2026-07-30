@@ -278,6 +278,8 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       text: string;
       durationSec: number | null;
       at: string;
+      deliveredAt?: string | null;
+      deliveredToIp?: string | null;
     } | null;
     lastCommand?: {
       action: string;
@@ -286,6 +288,22 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       reason: string | null;
       at: string;
     } | null;
+    paymentQr?: {
+      active: boolean;
+      branch?: string | null;
+      imageUrl?: string | null;
+      shownAt?: string | null;
+      hiddenAt?: string | null;
+      deliveredAt?: string | null;
+      deliveredToIp?: string | null;
+    } | null;
+    actionLog?: Array<{
+      type: string;
+      ok: boolean;
+      message: string;
+      details?: string | number | null;
+      at: string;
+    }>;
   } | null>(null);
   const [tvControlBusy, setTvControlBusy] = useState(false);
   const [contextMenuAntiSleep, setContextMenuAntiSleep] = useState<AntiSleepZone | null>(null);
@@ -401,6 +419,27 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     } catch (error) {
       console.error('Ошибка отправки сообщения на TV:', error);
       alert('Ошибка отправки сообщения на TV');
+    }
+  };
+
+  const handlePaymentQr = async (tableId: number, action: 'show' | 'hide') => {
+    setTvControlBusy(true);
+    try {
+      const res = await fetch(`${API_URL}/api/tv/payment-qr/${action}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tableId }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert('Не удалось изменить QR оплаты: ' + (data.error || res.status));
+      }
+    } catch (error) {
+      console.error('Ошибка QR оплаты TV:', error);
+      alert('Ошибка QR оплаты TV');
+    } finally {
+      setTvControlBusy(false);
+      loadTvControlStatus(tableId);
     }
   };
 
@@ -2949,10 +2988,33 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                 </div>
                 <div style={{ color: '#6b7280', lineHeight: 1.35 }}>
                   сообщение: {contextMenuTvStatus.lastNotice
-                    ? `“${contextMenuTvStatus.lastNotice.text.slice(0, 32)}${contextMenuTvStatus.lastNotice.text.length > 32 ? '…' : ''}” ${new Date(contextMenuTvStatus.lastNotice.at).toLocaleTimeString('ru-RU')}`
+                    ? `“${contextMenuTvStatus.lastNotice.text.slice(0, 32)}${contextMenuTvStatus.lastNotice.text.length > 32 ? '…' : ''}” ${new Date(contextMenuTvStatus.lastNotice.at).toLocaleTimeString('ru-RU')}${contextMenuTvStatus.lastNotice.deliveredAt ? ` · доставлено ${new Date(contextMenuTvStatus.lastNotice.deliveredAt).toLocaleTimeString('ru-RU')}` : ' · ждёт TV'}`
                     : '—'}
                 </div>
               </>
+            )}
+            <div style={{
+              marginTop: '4px',
+              padding: '6px 8px',
+              borderRadius: '8px',
+              background: contextMenuTvStatus?.paymentQr?.active ? '#ecfdf5' : '#f3f4f6',
+              color: contextMenuTvStatus?.paymentQr?.active ? '#065f46' : '#6b7280',
+              lineHeight: 1.35,
+              fontWeight: 700,
+            }}>
+              QR оплаты: {contextMenuTvStatus?.paymentQr?.active
+                ? `${contextMenuTvStatus.paymentQr.branch || 'филиал'}${contextMenuTvStatus.paymentQr.deliveredAt ? ` · TV забрал ${new Date(contextMenuTvStatus.paymentQr.deliveredAt).toLocaleTimeString('ru-RU')}` : ' · ждёт TV'}`
+                : 'скрыт'}
+            </div>
+            {contextMenuTvStatus?.actionLog && contextMenuTvStatus.actionLog.length > 0 && (
+              <div style={{ marginTop: '4px', padding: '6px 8px', borderRadius: '8px', background: '#111827', color: '#e5e7eb', lineHeight: 1.35 }}>
+                <div style={{ color: '#93c5fd', fontWeight: 700, marginBottom: '3px' }}>отладка действий</div>
+                {contextMenuTvStatus.actionLog.slice(-5).reverse().map((entry, index) => (
+                  <div key={`${entry.at}-${entry.type}-${index}`} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {entry.ok ? '✅' : '❌'} {new Date(entry.at).toLocaleTimeString('ru-RU')} · {entry.message}
+                  </div>
+                ))}
+              </div>
             )}
           </div>
 
@@ -3023,6 +3085,32 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
             type="button"
           >
             📺 Отправить сообщение на TV
+          </button>
+
+          <button
+            className="context-menu-item"
+            disabled={tvControlBusy}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handlePaymentQr(contextMenu.tableId, 'show');
+            }}
+            type="button"
+          >
+            💳 Показать QR оплаты
+          </button>
+
+          <button
+            className="context-menu-item"
+            disabled={tvControlBusy}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handlePaymentQr(contextMenu.tableId, 'hide');
+            }}
+            type="button"
+          >
+            🙈 Скрыть QR оплаты
           </button>
           <div
             style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px' }}
