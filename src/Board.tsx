@@ -24,6 +24,11 @@ import {
   parsePackageComment,
   removePackageGroupAt,
 } from './packageGroups';
+import {
+  getTvConnectionLabel,
+  getTvPowerLabel,
+  getTvScreenLabel,
+} from './tvStatusLabels';
 
 const SOURCES = ['Лично', 'Звонок', 'Онлайн'] as const;
 type SourceType = typeof SOURCES[number];
@@ -2920,20 +2925,14 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
               <span style={{ color: '#9ca3af' }}>нет данных SmartThings</span>
             ) : (
               <>
-                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                  <span>
-                    {contextMenuTvStatus.tvOn === null ? '⚪' : contextMenuTvStatus.tvOn ? '🟢' : '🔴'} TV {contextMenuTvStatus.tvOn === null ? '?' : contextMenuTvStatus.tvOn ? 'включен' : 'выключен'}
-                  </span>
-                  <span>
-                    {contextMenuTvStatus.appRunning ? '🟢' : '🔴'} App {contextMenuTvStatus.appRunning ? 'отвечает' : 'не отвечает'}
-                  </span>
-                  <span>
-                    {contextMenuTvStatus.appVisible === null || contextMenuTvStatus.appVisible === undefined
-                      ? '⚪ экран ?'
-                      : contextMenuTvStatus.appVisible
-                        ? '🟢 на экране'
-                        : '🟡 в фоне'}
-                  </span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                  <span>{getTvPowerLabel(contextMenuTvStatus.tvOn)}</span>
+                  <span>{getTvConnectionLabel(contextMenuTvStatus.appRunning)}</span>
+                  <span>{getTvScreenLabel({
+                    appRunning: contextMenuTvStatus.appRunning,
+                    appVisible: contextMenuTvStatus.appVisible,
+                    appVersion: contextMenuTvStatus.appVersion,
+                  })}</span>
                 </div>
                 <div style={{ color: '#6b7280', lineHeight: 1.35 }}>
                   IP: {contextMenuTvStatus.ip || '—'}
