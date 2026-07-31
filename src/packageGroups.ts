@@ -51,7 +51,7 @@ function normalizeStartedAt(value: unknown): string | undefined {
 }
 
 export function isMixedPackageZone(branch: string, tableId: number): boolean {
-  return branch === 'Полевая';
+  return branch === 'Полевая' || branch === 'МСК';
 }
 
 export function addHoursToClockTime(time: string, hours: number): string {
