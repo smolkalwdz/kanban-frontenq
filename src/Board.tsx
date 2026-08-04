@@ -1465,8 +1465,18 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   // Удаление бронирования
   const handleDelete = async (id: string) => {
     if (window.confirm('Вы уверены, что хотите удалить эту бронь?')) {
+      const deletedBooking = bookings.find(b => b.id === id);
       await fetch(`${API_URL}/api/bookings/${id}`, { method: 'DELETE' });
       setBookings(prev => prev.filter(b => b.id !== id));
+      if (deletedBooking) {
+        // Гасим прежнюю TV-плашку ("время закончилось" и т.п.) — иначе висит до
+        // следующей активации брони на этом же столе.
+        fetch(`${API_URL}/api/tv/clear`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tableId: deletedBooking.tableId })
+        }).catch(() => {});
+      }
       const bookingPrefix = `${id}_`;
       const updatedEndingNotified = new Set(
         Array.from(notifiedEndingBookingsRef.current).filter(key => !key.startsWith(bookingPrefix))
@@ -2274,7 +2284,9 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
             body: JSON.stringify({
               tableId: booking.tableId,
               text: 'Время закончилось.\nДля продления подойдите на ресепшен',
-              durationSec: null
+              // Без явного clear висела бы вечно (баг) — ставим потолок как подстраховку,
+              // сама плашка обычно гасится раньше через /api/tv/clear при новой активации/удалении.
+              durationSec: 4 * 3600
             })
           });
         } catch (error) {
@@ -2359,7 +2371,9 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
               body: JSON.stringify({
                 tableId: booking.tableId,
                 text: `${endedInfo.packageLabel} закончился.\nДля продления подойдите на ресепшен`,
-                durationSec: null
+                // Без явного clear висела бы вечно (баг) — ставим потолок как подстраховку,
+                // сама плашка обычно гасится раньше через /api/tv/clear при новой активации/удалении.
+                durationSec: 4 * 3600
               })
             });
             tvStored = tvResponse.ok;
@@ -2766,9 +2780,14 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       // Получаем все брони текущего филиала
       const currentBranchBookings = bookings.filter(b => b.branch === currentBranch);
       
-      // Удаляем каждую бронь
+      // Удаляем каждую бронь и гасим TV-плашку на её столе
       for (const booking of currentBranchBookings) {
         await fetch(`${API_URL}/api/bookings/${booking.id}`, { method: 'DELETE' });
+        fetch(`${API_URL}/api/tv/clear`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tableId: booking.tableId })
+        }).catch(() => {});
       }
       
       // Обновляем локальное состояние
