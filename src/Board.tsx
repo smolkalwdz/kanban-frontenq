@@ -1305,14 +1305,13 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       body: JSON.stringify({ ...booking, isActive: nextIsActive, activeStartedAt }),
     });
 
-    if (nextIsActive) {
-      // Новая активная сессия на столе — гасим прежнюю TV-плашку ("время закончилось" и т.п.)
-      fetch(`${API_URL}/api/tv/clear`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tableId: booking.tableId })
-      }).catch(() => {});
-    }
+    // И при старте новой сессии, и при завершении текущей — гасим прежнюю TV-плашку
+    // ("время закончилось" и т.п.), иначе она виснет на экране, пока карточку не удалят.
+    fetch(`${API_URL}/api/tv/clear`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tableId: booking.tableId })
+    }).catch(() => {});
     fetch(`${API_URL}/api/bookings`)
       .then(res => res.json())
       .then(data => setBookings(
