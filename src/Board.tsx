@@ -1879,6 +1879,14 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
             tableId: updated.tableId !== undefined ? Number(updated.tableId) : item.tableId,
           }
         : item));
+
+      // Гасим TV-плашку "пакет закончился" для этого тарифа — иначе висит на экране,
+      // хотя гость уже подтвердил завершение крестиком у тарифа в карточке.
+      fetch(`${API_URL}/api/tv/clear`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tableId: booking.tableId })
+      }).catch(() => {});
     } catch (error) {
       console.error('❌ Ошибка удаления тарифа в карточке:', error);
     }
