@@ -493,6 +493,17 @@ body {
   padding: 0;
 }
 
+/* Iframe/embed usage (e.g. inside a CRM side panel) renders this
+   component in a narrow container — its own viewport for this media
+   query is the iframe's width, not the host page's, so this only
+   kicks in when actually embedded narrow. Normal full-width/TV usage
+   (>700px) is untouched. */
+@media (max-width: 700px) {
+  .kanban-board-content {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  }
+}
+
 /* Зоны */
 .zone-card {
   background: #ffffff;
