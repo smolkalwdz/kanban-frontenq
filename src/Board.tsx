@@ -1493,12 +1493,12 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
 
   // Получаем брони для текущего филиала
   const currentBookings = bookings.filter(booking => booking.branch === currentBranch);
-  // Подсветка счастливых часов: активируется с 18:50
+  // Подсветка счастливых часов: активируется с 17:50
   const isHHTimeNow = () => {
     const now = getNow();
     const hours = now.getHours();
     const minutes = now.getMinutes();
-    return hours > 18 || (hours === 18 && minutes >= 50);
+    return hours > 17 || (hours === 17 && minutes >= 50);
   };
 
   const shouldHighlightHH = (b: Booking) => !!b.isHappyHours;
@@ -1507,7 +1507,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     const now = getNow();
     const hours = now.getHours();
     const minutes = now.getMinutes();
-    return hours === 18 && minutes >= 50 && minutes <= 59;
+    return hours === 17 && minutes >= 50 && minutes <= 59;
   };
 
   const shouldBlinkHH = (b: Booking) => !!b.isHappyHours && isHHWarningWindow();
@@ -2414,14 +2414,14 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
 
   // ========== КОНЕЦ ЛОГИКИ ПРОВЕРКИ ЗАДАЧ ==========
 
-  // Ежедневное уведомление в 18:50, если есть хотя бы одна HH-бронирование в текущем филиале
+  // Ежедневное уведомление в 17:50, если есть хотя бы одна HH-бронирование в текущем филиале
   useEffect(() => {
     let alertedKey = `hh_alerted_${getNow().toDateString()}`;
     if (localStorage.getItem(alertedKey)) return;
 
     const checkAndAlert = () => {
       const now = getNow();
-      if (now.getHours() === 18 && now.getMinutes() === 50) {
+      if (now.getHours() === 17 && now.getMinutes() === 50) {
         const hasHH = bookings.some(b => b.branch === currentBranch && b.isHappyHours);
         if (hasHH) {
           alert('Напоминание: Счастливые часы!');
