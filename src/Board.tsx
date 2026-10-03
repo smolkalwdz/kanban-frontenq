@@ -410,6 +410,29 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     }
   };
 
+  // Выключить TV через SmartThings
+  const handleTvStop = async (tableId: number) => {
+    if (!window.confirm('Выключить TV в этой зоне?')) return;
+    setTvControlBusy(true);
+    try {
+      const res = await fetch(`${API_URL}/api/tv/control-stop`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tableId }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert('Не удалось выключить TV: ' + (data.error || res.status));
+      }
+    } catch (error) {
+      console.error('Ошибка выключения TV:', error);
+      alert('Ошибка выключения TV');
+    } finally {
+      setTvControlBusy(false);
+      loadTvControlStatus(tableId);
+    }
+  };
+
   // Переключить вход HDMI на TV
   const handleTvHdmi = async (tableId: number, source: string) => {
     setTvControlBusy(true);
@@ -3170,6 +3193,19 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
             type="button"
           >
             ▶️ Запустить TV + приложение
+          </button>
+
+          <button
+            className="context-menu-item"
+            disabled={tvControlBusy || !contextMenuTvStatus?.hasSmartThings}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleTvStop(contextMenu.tableId);
+            }}
+            type="button"
+          >
+            ⏹️ Выключить TV
           </button>
 
           <button
