@@ -79,6 +79,7 @@ interface Booking {
   isHappyHours?: boolean;
   smokingTimerEnd?: string; // ISO дата окончания таймера курения
   activeStartedAt?: string | null; // ISO дата начала активной брони
+  hookahAddedAt?: string | null; // ISO дата отметки "Кальян" — для напоминания проверить через 10 мин
 }
 
 interface BoardProps {
@@ -628,6 +629,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       hasShisha: !!quickForm.hasShisha,
       isHappyHours: !!quickForm.isHappyHours || normalizedPackageGroups.some(group => group.kind === 'happy_hours'),
       smokingTimerEnd,
+      hookahAddedAt: quickForm.hasShisha ? getNow().toISOString() : null,
     };
 
     try {
@@ -766,6 +768,21 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   // Функция для сохранения в localStorage
   const saveNotifiedTimers = (timers: Set<string>) => {
     localStorage.setItem('smoking_notified_timers', JSON.stringify(Array.from(timers)));
+  };
+
+  // Аналогичный dedup-набор для напоминания "проверить кальян" через 10 мин после отметки
+  const notifiedHookahRef = useRef<Set<string>>(
+    (() => {
+      try {
+        const stored = localStorage.getItem('hookah_notified_checks');
+        return stored ? new Set(JSON.parse(stored)) : new Set();
+      } catch {
+        return new Set();
+      }
+    })()
+  );
+  const saveNotifiedHookah = (ids: Set<string>) => {
+    localStorage.setItem('hookah_notified_checks', JSON.stringify(Array.from(ids)));
   };
   const [form, setForm] = useState<{
     name: string;
@@ -1294,6 +1311,20 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       ? encodePackageComment(editedPackageGroups, editForm.comment)
       : editForm.comment.trim();
 
+    // "Кальян" только что отметили (не было — стало) → запускаем отсчёт 10 мин для
+    // напоминания проверить кальян. Если галочка уже была — таймер не трогаем.
+    // Если сняли — отменяем напоминание.
+    let hookahAddedAt: string | null;
+    if (!editForm.hasShisha) {
+      hookahAddedAt = null;
+    } else if (editingBooking.hasShisha) {
+      hookahAddedAt = editingBooking.hookahAddedAt || getNow().toISOString();
+    } else {
+      hookahAddedAt = getNow().toISOString();
+      notifiedHookahRef.current.delete(editingBooking.id);
+      saveNotifiedHookah(notifiedHookahRef.current);
+    }
+
     const res = await fetch(`${API_URL}/api/bookings/${editingBooking.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -1309,6 +1340,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
         hasShisha: editForm.hasShisha,
         isHappyHours: editForm.isHappyHours || editedPackageGroups.some(group => group.kind === 'happy_hours'),
         smokingTimerEnd,
+        hookahAddedAt,
       }),
     });
     const updated = await res.json();
@@ -1843,6 +1875,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
           hasShisha: !!booking.hasShisha,
           isHappyHours: !!booking.isHappyHours || preset === 'happy_hours',
           smokingTimerEnd: booking.smokingTimerEnd || null,
+          hookahAddedAt: booking.hookahAddedAt || null,
         }),
       });
 
@@ -1891,6 +1924,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
           hasShisha: !!booking.hasShisha,
           isHappyHours: !!booking.isHappyHours,
           smokingTimerEnd: booking.smokingTimerEnd || null,
+          hookahAddedAt: booking.hookahAddedAt || null,
         }),
       });
 
@@ -1998,6 +2032,58 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   }, [bookings, currentBranch, tables]);
 
   // ========== КОНЕЦ ЛОГИКИ ТАЙМЕРА КУРЕНИЯ ==========
+
+  // Уведомление: спустя 10 минут после отметки "Кальян" — подойти уточнить, всё ли ок
+  useEffect(() => {
+    const HOOKAH_CHECK_DELAY_MS = 10 * 60 * 1000;
+
+    const checkAndNotifyHookah = async () => {
+      const notified = notifiedHookahRef.current;
+      const now = getNow();
+
+      const dueBookings = bookings.filter(b =>
+        b.branch === currentBranch &&
+        b.hasShisha &&
+        b.hookahAddedAt &&
+        now.getTime() - new Date(b.hookahAddedAt).getTime() >= HOOKAH_CHECK_DELAY_MS &&
+        !notified.has(b.id)
+      );
+
+      if (dueBookings.length === 0) return;
+
+      for (const booking of dueBookings) {
+        notified.add(booking.id);
+        saveNotifiedHookah(notified);
+
+        const table = tables.find(t => String(t.id) === String(booking.tableId));
+        const zoneName = table?.name || `Зона ${booking.tableId}`;
+
+        try {
+          const testTimeOverride = localStorage.getItem('appTimeOverride');
+          const payload: any = { branch: booking.branch, zoneName, guestName: booking.name };
+          if (testTimeOverride) payload.testDate = testTimeOverride;
+
+          await fetch(`${API_URL}/api/telegram/notify-hookah-check`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+        } catch (error) {
+          console.error('❌ Ошибка отправки напоминания про кальян:', error);
+        }
+      }
+
+      const currentBookingIds = new Set(bookings.map(b => b.id));
+      const cleaned = new Set(Array.from(notified).filter(id => currentBookingIds.has(id)));
+      if (cleaned.size !== notified.size) {
+        notifiedHookahRef.current = cleaned;
+        saveNotifiedHookah(cleaned);
+      }
+    };
+
+    const interval = setInterval(checkAndNotifyHookah, 5000);
+    return () => clearInterval(interval);
+  }, [bookings, currentBranch, tables]);
 
   // ========== ЛОГИКА ПРОВЕРКИ И ОТПРАВКИ ЗАДАЧ ==========
   
