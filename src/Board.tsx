@@ -309,6 +309,35 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   const [contextMenuAntiSleep, setContextMenuAntiSleep] = useState<AntiSleepZone | null>(null);
   const [antiSleepBusy, setAntiSleepBusy] = useState(false);
 
+  // Сводный статус TV всех зон — индикаторы прямо на карточках (включен/выключен,
+  // дойдёт ли уведомление до приложения). Данные уже закэшированы на бэкенде,
+  // поэтому опрашивать можно часто и не бояться rate-limit SmartThings.
+  const [tvStatusSummary, setTvStatusSummary] = useState<Record<string, {
+    tvOn: boolean | null;
+    appRunning: boolean;
+    branch: string | null;
+  }>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadSummary = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/tv/status-summary`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setTvStatusSummary(data);
+      } catch (error) {
+        console.error('Ошибка получения сводного статуса TV:', error);
+      }
+    };
+    loadSummary();
+    const interval = setInterval(loadSummary, 10000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
+
   const loadTvControlStatus = async (tableId: number) => {
     try {
       const res = await fetch(`${API_URL}/api/tv/control-status/${tableId}`);
@@ -3347,6 +3376,31 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
               >
                 <div className="zone-card-header">
                   {table.name}
+                  <span className="tv-status-icons">
+                    <span
+                      className="tv-status-dot"
+                      title={getTvPowerLabel(tvStatusSummary[table.id]?.tvOn ?? null)}
+                    >
+                      {tvStatusSummary[table.id]?.tvOn === true ? '🟢' : tvStatusSummary[table.id]?.tvOn === false ? '🔴' : '⚪'}
+                    </span>
+                    <span
+                      className="tv-status-dot"
+                      title={getTvConnectionLabel(tvStatusSummary[table.id]?.appRunning ?? null)}
+                    >
+                      {tvStatusSummary[table.id] ? (tvStatusSummary[table.id].appRunning ? '🟢' : '🔴') : '⚪'}
+                    </span>
+                    <button
+                      type="button"
+                      className="tv-status-help-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        alert('Если TV выключен или нет связи с приложением — зайдите в зону и нажмите «Запуск ТВ» + «Приложение».');
+                      }}
+                      title="Что делать?"
+                    >
+                      !
+                    </button>
+                  </span>
                   {table.isNotCleaned && (
                     <div className="not-cleaned-indicator">Не убрана</div>
                   )}

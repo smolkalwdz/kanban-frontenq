@@ -528,6 +528,43 @@ body {
   letter-spacing: 0.5px;
 }
 
+.tv-status-icons {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.tv-status-dot {
+  font-size: 9px;
+  line-height: 1;
+  cursor: default;
+}
+
+.tv-status-help-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+  color: white;
+  font-size: 10px;
+  font-weight: 800;
+  font-style: normal;
+  line-height: 1;
+  cursor: pointer;
+  text-shadow: none;
+}
+
+.tv-status-help-btn:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
 .zone-card-body {
   flex: 1;
   padding: 6px;
