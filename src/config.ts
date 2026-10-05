@@ -1,1 +1,1 @@
-export const API_URL = 'https://kanban-api.dungeon-hookah.ru';
+export const API_URL = 'https://kanban.dungeon-samara.ru';
