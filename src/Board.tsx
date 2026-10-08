@@ -33,6 +33,9 @@ import {
 const SOURCES = ['Лично', 'Звонок', 'Онлайн'] as const;
 type SourceType = typeof SOURCES[number];
 
+// Через сколько после отметки "Кальян" слать напоминание сотрудникам подойти уточнить
+const HOOKAH_CHECK_DELAY_MS = 20 * 60 * 1000;
+
 // Прибавляет часы к времени "HH:MM", с переходом через полночь
 function addHoursToTime(time: string, hours: number): string {
   const [h, m] = time.split(':').map(Number);
@@ -777,6 +780,8 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   const saveNotifiedHookah = (ids: Set<string>) => {
     localStorage.setItem('hookah_notified_checks', JSON.stringify(Array.from(ids)));
   };
+  // Только на время самого запроса — не персистим, не переживает перезагрузку страницы умышленно
+  const pendingHookahRef = useRef<Set<string>>(new Set());
   const [form, setForm] = useState<{
     name: string;
     time: string;
@@ -1732,6 +1737,13 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
     return `🚬 ${mins}:${secs}`;
   };
 
+  // Та же задержка, что и в эффекте уведомления про кальян ниже — вынесена
+  // наверх, чтобы карточка мигала тем же порогом, что и реальная отправка в Telegram.
+  const isHookahCheckDue = (booking: Booking): boolean => {
+    if (!booking.hasShisha || !booking.hookahAddedAt) return false;
+    return getNow().getTime() - new Date(booking.hookahAddedAt).getTime() >= HOOKAH_CHECK_DELAY_MS;
+  };
+
   const formatActiveDuration = (booking: Booking): string | null => {
     if (!booking.isActive || !booking.activeStartedAt) return null;
 
@@ -2026,27 +2038,34 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
 
   // ========== КОНЕЦ ЛОГИКИ ТАЙМЕРА КУРЕНИЯ ==========
 
-  // Уведомление: спустя 10 минут после отметки "Кальян" — подойти уточнить, всё ли ок
+  // Уведомление: спустя HOOKAH_CHECK_DELAY_MS после отметки "Кальян" — подойти уточнить, всё ли ок
   useEffect(() => {
-    const HOOKAH_CHECK_DELAY_MS = 10 * 60 * 1000;
-
     const checkAndNotifyHookah = async () => {
       const notified = notifiedHookahRef.current;
+      const pending = pendingHookahRef.current;
       const now = getNow();
 
+      // Раньше тут была проверка b.branch === currentBranch — из-за неё напоминание
+      // откладывалось до тех пор, пока админ не откроет вкладку именно того филиала,
+      // где создавали бронь. Уведомление серверное (в Telegram), какая вкладка
+      // открыта в браузере — неважно, поэтому фильтр по филиалу убран.
       const dueBookings = bookings.filter(b =>
-        b.branch === currentBranch &&
         b.hasShisha &&
         b.hookahAddedAt &&
         now.getTime() - new Date(b.hookahAddedAt).getTime() >= HOOKAH_CHECK_DELAY_MS &&
-        !notified.has(b.id)
+        !notified.has(b.id) &&
+        !pending.has(b.id)
       );
 
       if (dueBookings.length === 0) return;
 
       for (const booking of dueBookings) {
-        notified.add(booking.id);
-        saveNotifiedHookah(notified);
+        // pending — только защита от повторного запуска, пока этот же запрос ещё
+        // летит (следующий тик через 5с). В notified (persisted) кладём только
+        // после подтверждённой доставки — иначе при ошибке бэкенда (смена не
+        // заполнена в Google Sheets, у сотрудника нет Telegram ID и т.п.)
+        // напоминание раньше терялось навсегда без единой попытки повтора.
+        pending.add(booking.id);
 
         const table = tables.find(t => String(t.id) === String(booking.tableId));
         const zoneName = table?.name || `Зона ${booking.tableId}`;
@@ -2056,13 +2075,23 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
           const payload: any = { branch: booking.branch, zoneName, guestName: booking.name };
           if (testTimeOverride) payload.testDate = testTimeOverride;
 
-          await fetch(`${API_URL}/api/telegram/notify-hookah-check`, {
+          const res = await fetch(`${API_URL}/api/telegram/notify-hookah-check`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
           });
+
+          if (res.ok) {
+            notified.add(booking.id);
+            saveNotifiedHookah(notified);
+          } else {
+            const errBody = await res.text().catch(() => '');
+            console.error(`❌ Напоминание про кальян не доставлено (${res.status}): ${errBody}`);
+          }
         } catch (error) {
           console.error('❌ Ошибка отправки напоминания про кальян:', error);
+        } finally {
+          pending.delete(booking.id);
         }
       }
 
@@ -3515,7 +3544,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                   draggable
                   onDragStart={() => handleDragStart(b)}
                   onClick={(e) => e.stopPropagation()}
-                  className={`booking-card ${b.isActive ? 'green' : 'red'} ${shouldHighlightHH(b) ? 'hh-active' : ''} ${shouldBlinkHH(b) ? 'hh-blink' : ''} ${isTimerExpired ? 'smoking-timer-expired' : ''} ${endingSoonInfo || packageEndingSoonInfos.length > 0 ? 'booking-ending-soon' : ''} ${isOverdue ? 'booking-overdue' : ''} ${activeDurationText ? 'has-active-timer' : ''}`}
+                  className={`booking-card ${b.isActive ? 'green' : 'red'} ${shouldHighlightHH(b) ? 'hh-active' : ''} ${shouldBlinkHH(b) ? 'hh-blink' : ''} ${isTimerExpired ? 'smoking-timer-expired' : ''} ${endingSoonInfo || packageEndingSoonInfos.length > 0 ? 'booking-ending-soon' : ''} ${isOverdue ? 'booking-overdue' : ''} ${activeDurationText ? 'has-active-timer' : ''} ${isHookahCheckDue(b) ? 'hookah-check-blink' : ''}`}
                     >
                       {activeDurationText && (
                         <div className="booking-active-timer">
@@ -3526,6 +3555,11 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                       {smokingTimerText && (
                         <div className={`smoking-timer ${isTimerExpired ? 'expired' : ''}`}>
                           {smokingTimerText}
+                        </div>
+                      )}
+                      {isHookahCheckDue(b) && (
+                        <div className="hookah-check-badge">
+                          💨 Подойди уточни всё ли норм с кальяном
                         </div>
                       )}
                       <div className="booking-time">{b.time}{b.endTime ? ` - ${b.endTime}` : ''}</div>
