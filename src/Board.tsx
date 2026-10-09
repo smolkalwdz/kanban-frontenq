@@ -782,6 +782,26 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   };
   // Только на время самого запроса — не персистим, не переживает перезагрузку страницы умышленно
   const pendingHookahRef = useRef<Set<string>>(new Set());
+  // Отдельно от notifiedHookahRef (тот гейтит отправку в Telegram) — крестик
+  // на карточке только прячет плашку у этого сотрудника, на сам пуш не влияет.
+  const [dismissedHookah, setDismissedHookah] = useState<Set<string>>(
+    (() => {
+      try {
+        const stored = localStorage.getItem('hookah_dismissed_checks');
+        return stored ? new Set(JSON.parse(stored)) : new Set();
+      } catch {
+        return new Set();
+      }
+    })()
+  );
+  const dismissHookahBadge = (bookingId: string) => {
+    setDismissedHookah((prev) => {
+      const next = new Set(prev);
+      next.add(bookingId);
+      localStorage.setItem('hookah_dismissed_checks', JSON.stringify(Array.from(next)));
+      return next;
+    });
+  };
   const [form, setForm] = useState<{
     name: string;
     time: string;
@@ -1321,6 +1341,13 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       hookahAddedAt = getNow().toISOString();
       notifiedHookahRef.current.delete(editingBooking.id);
       saveNotifiedHookah(notifiedHookahRef.current);
+      setDismissedHookah((prev) => {
+        if (!prev.has(editingBooking.id)) return prev;
+        const next = new Set(prev);
+        next.delete(editingBooking.id);
+        localStorage.setItem('hookah_dismissed_checks', JSON.stringify(Array.from(next)));
+        return next;
+      });
     }
 
     const res = await fetch(`${API_URL}/api/bookings/${editingBooking.id}`, {
@@ -1739,8 +1766,11 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
 
   // Та же задержка, что и в эффекте уведомления про кальян ниже — вынесена
   // наверх, чтобы карточка мигала тем же порогом, что и реальная отправка в Telegram.
+  // isActive обязателен: бронь может нести hasShisha/hookahAddedAt с прошлого
+  // раза ещё до того, как гость реально сел — без этой проверки напоминание
+  // срабатывало и на пустые, ещё не занятые карточки.
   const isHookahCheckDue = (booking: Booking): boolean => {
-    if (!booking.hasShisha || !booking.hookahAddedAt) return false;
+    if (!booking.hasShisha || !booking.isActive || !booking.hookahAddedAt) return false;
     return getNow().getTime() - new Date(booking.hookahAddedAt).getTime() >= HOOKAH_CHECK_DELAY_MS;
   };
 
@@ -2049,10 +2079,10 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       // откладывалось до тех пор, пока админ не откроет вкладку именно того филиала,
       // где создавали бронь. Уведомление серверное (в Telegram), какая вкладка
       // открыта в браузере — неважно, поэтому фильтр по филиалу убран.
+      // isActive: бронь не "подняли" (гость ещё не сел) не должна напоминать
+      // подойти проверить кальян — там физически некому его проверять.
       const dueBookings = bookings.filter(b =>
-        b.hasShisha &&
-        b.hookahAddedAt &&
-        now.getTime() - new Date(b.hookahAddedAt).getTime() >= HOOKAH_CHECK_DELAY_MS &&
+        isHookahCheckDue(b) &&
         !notified.has(b.id) &&
         !pending.has(b.id)
       );
@@ -2072,7 +2102,13 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
 
         try {
           const testTimeOverride = localStorage.getItem('appTimeOverride');
-          const payload: any = { branch: booking.branch, zoneName, guestName: booking.name };
+          const payload: any = {
+            branch: booking.branch,
+            zoneName,
+            guestName: booking.name,
+            bookingId: booking.id,
+            hookahAddedAt: booking.hookahAddedAt,
+          };
           if (testTimeOverride) payload.testDate = testTimeOverride;
 
           const res = await fetch(`${API_URL}/api/telegram/notify-hookah-check`, {
@@ -3557,9 +3593,22 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                           {smokingTimerText}
                         </div>
                       )}
-                      {isHookahCheckDue(b) && (
+                      {isHookahCheckDue(b) && !dismissedHookah.has(b.id) && (
                         <div className="hookah-check-badge">
-                          💨 Подойди уточни всё ли норм с кальяном
+                          <span>💨 Подойди уточни всё ли норм с кальяном</span>
+                          <button
+                            type="button"
+                            className="hookah-check-dismiss"
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              dismissHookahBadge(b.id);
+                            }}
+                            title="Скрыть"
+                            aria-label="Скрыть напоминание"
+                          >
+                            ×
+                          </button>
                         </div>
                       )}
                       <div className="booking-time">{b.time}{b.endTime ? ` - ${b.endTime}` : ''}</div>
