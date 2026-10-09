@@ -83,6 +83,7 @@ interface Booking {
   smokingTimerEnd?: string; // ISO дата окончания таймера курения
   activeStartedAt?: string | null; // ISO дата начала активной брони
   hookahAddedAt?: string | null; // ISO дата отметки "Кальян" — для напоминания проверить через 10 мин
+  hookahCheckDismissed?: boolean; // крестик на плашке "Проверь кальян" нажали — общее на всех экранах (не per-browser)
 }
 
 interface BoardProps {
@@ -782,25 +783,18 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
   };
   // Только на время самого запроса — не персистим, не переживает перезагрузку страницы умышленно
   const pendingHookahRef = useRef<Set<string>>(new Set());
-  // Отдельно от notifiedHookahRef (тот гейтит отправку в Telegram) — крестик
-  // на карточке только прячет плашку у этого сотрудника, на сам пуш не влияет.
-  const [dismissedHookah, setDismissedHookah] = useState<Set<string>>(
-    (() => {
-      try {
-        const stored = localStorage.getItem('hookah_dismissed_checks');
-        return stored ? new Set(JSON.parse(stored)) : new Set();
-      } catch {
-        return new Set();
-      }
-    })()
-  );
+  // Крестик на плашке живёт на самой брони (hookahCheckDismissed, сервер),
+  // не в localStorage — иначе скрывалось бы только у того, кто нажал, а
+  // на остальных открытых экранах (TV, другой админ) плашка бы и дальше
+  // мигала на том же чеке. loadData() подхватывает это поле вместе с
+  // остальными бронями на обычном 5-секундном поллинге.
   const dismissHookahBadge = (bookingId: string) => {
-    setDismissedHookah((prev) => {
-      const next = new Set(prev);
-      next.add(bookingId);
-      localStorage.setItem('hookah_dismissed_checks', JSON.stringify(Array.from(next)));
-      return next;
-    });
+    setBookings((prev) => prev.map((b) => (b.id === bookingId ? { ...b, hookahCheckDismissed: true } : b)));
+    fetch(`${API_URL}/api/bookings/${bookingId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hookahCheckDismissed: true }),
+    }).catch((error) => console.error('❌ Не удалось скрыть напоминание про кальян:', error));
   };
   const [form, setForm] = useState<{
     name: string;
@@ -1329,25 +1323,21 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
       ? encodePackageComment(editedPackageGroups, editForm.comment)
       : editForm.comment.trim();
 
-    // "Кальян" только что отметили (не было — стало) → запускаем отсчёт 10 мин для
-    // напоминания проверить кальян. Если галочка уже была — таймер не трогаем.
-    // Если сняли — отменяем напоминание.
+    // "Кальян" только что отметили (не было — стало) → запускаем отсчёт 20 мин для
+    // напоминания проверить кальян, сбрасываем прежний крестик-дисмисс (новый
+    // кальян — новое событие, молчать про него не повод). Если галочка уже
+    // была — таймер и dismissed не трогаем. Если сняли — отменяем напоминание.
     let hookahAddedAt: string | null;
+    let hookahCheckDismissed: boolean | undefined;
     if (!editForm.hasShisha) {
       hookahAddedAt = null;
     } else if (editingBooking.hasShisha) {
       hookahAddedAt = editingBooking.hookahAddedAt || getNow().toISOString();
     } else {
       hookahAddedAt = getNow().toISOString();
+      hookahCheckDismissed = false;
       notifiedHookahRef.current.delete(editingBooking.id);
       saveNotifiedHookah(notifiedHookahRef.current);
-      setDismissedHookah((prev) => {
-        if (!prev.has(editingBooking.id)) return prev;
-        const next = new Set(prev);
-        next.delete(editingBooking.id);
-        localStorage.setItem('hookah_dismissed_checks', JSON.stringify(Array.from(next)));
-        return next;
-      });
     }
 
     const res = await fetch(`${API_URL}/api/bookings/${editingBooking.id}`, {
@@ -1366,6 +1356,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
         isHappyHours: editForm.isHappyHours || editedPackageGroups.some(group => group.kind === 'happy_hours'),
         smokingTimerEnd,
         hookahAddedAt,
+        ...(hookahCheckDismissed !== undefined ? { hookahCheckDismissed } : {}),
       }),
     });
     const updated = await res.json();
@@ -3593,7 +3584,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                           {smokingTimerText}
                         </div>
                       )}
-                      {isHookahCheckDue(b) && !dismissedHookah.has(b.id) && (
+                      {isHookahCheckDue(b) && !b.hookahCheckDismissed && (
                         <div className="hookah-check-badge">
                           <span>💨 Подойди уточни всё ли норм с кальяном</span>
                           <button
