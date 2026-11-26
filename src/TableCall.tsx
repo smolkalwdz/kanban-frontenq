@@ -46,18 +46,11 @@ const TableCall: React.FC<TableCallProps> = ({ branch, tableId }) => {
           url: 'https://dodopizza.ru/',
         },
         {
-          name: 'Квадратик',
+          name: 'КВАДРАТИКА',
           offer: 'Скидка 10% на заказ.',
           promoCode: 'Dungeon',
-          buttonLabel: 'Заказать в Квадратик',
+          buttonLabel: 'Заказать в КВАДРАТИКА',
           url: 'https://kpizza.ru/',
-        },
-        {
-          name: 'О! Суши',
-          offer: 'Жареный ролл в подарок при заказе от 1500 рублей.',
-          promoCode: 'SAM1DUNG',
-          buttonLabel: 'Заказать в О! Суши',
-          url: 'https://taplink.io/id:014602267:e3b8',
         },
         {
           name: 'Гусь Бургер',
@@ -88,18 +81,11 @@ const TableCall: React.FC<TableCallProps> = ({ branch, tableId }) => {
             url: 'https://dodopizza.ru/',
           },
           {
-            name: 'Квадратик',
+            name: 'КВАДРАТИКА',
             offer: 'Скидка 10% на заказ.',
             promoCode: 'Dungeon',
-            buttonLabel: 'Заказать в Квадратик',
+            buttonLabel: 'Заказать в КВАДРАТИКА',
             url: 'https://kpizza.ru/',
-          },
-          {
-            name: 'О! Суши',
-            offer: 'Жареный ролл в подарок при заказе от 1500 рублей.',
-            promoCode: 'SAM1DUNG',
-            buttonLabel: 'Заказать в О! Суши',
-            url: 'https://taplink.io/id:014602267:e3b8',
           },
           {
             name: 'Гусь Бургер',
