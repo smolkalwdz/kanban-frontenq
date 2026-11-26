@@ -2394,6 +2394,35 @@ input:focus, select:focus {
   outline-offset: 2px;
 }
 
+/* Бронь не была активирована через 30 минут после времени начала. */
+.booking-card.booking-arrival-overdue {
+  animation: bookingArrivalOverdueBlink 0.65s ease-in-out infinite;
+  outline: 4px solid #b91c1c;
+  outline-offset: 2px;
+}
+
+.booking-arrival-overdue-warning {
+  background: #b91c1c;
+  color: #fff;
+  border-radius: 6px;
+  margin: 4px 0;
+  padding: 5px 6px;
+  font-size: 12px;
+  font-weight: 900;
+  text-align: center;
+  animation: bookingArrivalOverdueTextBlink 0.65s ease-in-out infinite;
+}
+
+@keyframes bookingArrivalOverdueBlink {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(185, 28, 28, 0.2) inset, 0 0 16px rgba(185, 28, 28, 0.45); }
+  50% { box-shadow: 0 0 0 5px rgba(239, 68, 68, 0.72) inset, 0 0 30px rgba(239, 68, 68, 0.95); }
+}
+
+@keyframes bookingArrivalOverdueTextBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
 @keyframes bookingOverdueBlink {
   0%, 100% {
     box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.3) inset, 0 0 14px rgba(239, 68, 68, 0.5);

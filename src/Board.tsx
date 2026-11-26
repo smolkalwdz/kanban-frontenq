@@ -29,6 +29,7 @@ import {
   getTvPowerLabel,
   getTvScreenLabel,
 } from './tvStatusLabels';
+import { getBookingOverdueInfo } from './overdueBooking';
 
 const SOURCES = ['Лично', 'Звонок', 'Онлайн'] as const;
 type SourceType = typeof SOURCES[number];
@@ -84,6 +85,7 @@ interface Booking {
   activeStartedAt?: string | null; // ISO дата начала активной брони
   hookahAddedAt?: string | null; // ISO дата отметки "Кальян" — для напоминания проверить через 10 мин
   hookahCheckDismissed?: boolean; // крестик на плашке "Проверь кальян" нажали — общее на всех экранах (не per-browser)
+  overdueNotifiedAt?: string | null;
 }
 
 interface BoardProps {
@@ -3552,6 +3554,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                   {currentBookings.filter(b => String(b.tableId) === String(table.id)).map((b) => {
                     const smokingTimerText = formatSmokingTimer(b);
                     const isTimerExpired = isSmokingTimerExpired(b);
+                    const arrivalOverdueInfo = getBookingOverdueInfo(b, getNow());
                     const endingSoonInfo = getEndingSoonInfo(b);
                     const packageEndingSoonInfos = getPackageEndingSoonInfos(b);
                     const packageEndedInfos = getPackageEndedInfos(b);
@@ -3571,7 +3574,7 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                   draggable
                   onDragStart={() => handleDragStart(b)}
                   onClick={(e) => e.stopPropagation()}
-                  className={`booking-card ${b.isActive ? 'green' : 'red'} ${shouldHighlightHH(b) ? 'hh-active' : ''} ${shouldBlinkHH(b) ? 'hh-blink' : ''} ${isTimerExpired ? 'smoking-timer-expired' : ''} ${endingSoonInfo || packageEndingSoonInfos.length > 0 ? 'booking-ending-soon' : ''} ${isOverdue ? 'booking-overdue' : ''} ${activeDurationText ? 'has-active-timer' : ''} ${isHookahCheckDue(b) ? 'hookah-check-blink' : ''}`}
+                  className={`booking-card ${b.isActive ? 'green' : 'red'} ${shouldHighlightHH(b) ? 'hh-active' : ''} ${shouldBlinkHH(b) ? 'hh-blink' : ''} ${isTimerExpired ? 'smoking-timer-expired' : ''} ${endingSoonInfo || packageEndingSoonInfos.length > 0 ? 'booking-ending-soon' : ''} ${isOverdue ? 'booking-overdue' : ''} ${arrivalOverdueInfo ? 'booking-arrival-overdue' : ''} ${activeDurationText ? 'has-active-timer' : ''} ${isHookahCheckDue(b) ? 'hookah-check-blink' : ''}`}
                     >
                       {activeDurationText && (
                         <div className="booking-active-timer">
@@ -3603,6 +3606,11 @@ const Board: React.FC<BoardProps> = ({ onOpenAdmin }) => {
                         </div>
                       )}
                       <div className="booking-time">{b.time}{b.endTime ? ` - ${b.endTime}` : ''}</div>
+                      {arrivalOverdueInfo && (
+                        <div className="booking-arrival-overdue-warning">
+                          ⚠️ БРОНЬ ПРОСРОЧЕНА{arrivalOverdueInfo.minutesOver > 0 ? ` НА ${arrivalOverdueInfo.minutesOver} МИН` : ''}
+                        </div>
+                      )}
                       {endingSoonInfo && (
                         <div className="booking-ending-warning">{endingSoonInfo.label}</div>
                       )}
